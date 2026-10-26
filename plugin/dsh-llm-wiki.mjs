@@ -1,7 +1,8 @@
 /**
  * dsh-llm-wiki.mjs —— LLM-Wiki 生命周期插件（P3）
  *
- * profile 本地文件插件（cordis.patch.yml insert name: './dsh-llm-wiki.mjs'）。
+ * 安装方式：作为 DSH bundle 挂载（本包 cordis.patch.yml 里 `insert: - id: llm-wiki / name: dsh-llm-wiki`），
+ * profile 的 cordis.patch.yml 只做配置覆盖（vault 等），不重复 insert。
  * 零外部依赖（不 import dsh-tools；只用 node 内置 + ctx）。
  *
  * 功能：
@@ -9,30 +10,35 @@
  *  2. session/disposed → 异步触发 P2 管线（防重入 + 冷却）
  *
  * 配置（cordis.patch.yml config）:
- *  vault:        vault 路径（默认按平台：Windows D:\DB\Obsidian\LLM-Wiki，其他 /mnt/d/DB/Obsidian/LLM-Wiki）
+ *  vault:        vault 路径（默认按平台：Windows D:\学习\AI知识库\LLM-Wiki，其他 /mnt/d/学习/AI知识库/LLM-Wiki）
  *  previewOrder: 知识预览 section 顺序（默认 138）
  *  rulesOrder:   守则 section 顺序（默认 139）
  *  mainAgentOnly: 只给主 Agent 注入知识库（默认 true；spawn/fork 出来的子代理不加载）
  *
  * 跨平台说明：
- *  - 管线位置由 $DSH_HOME 推导（Windows 桌面版为 C:\Users\<user>\.dsh\bin\llm-wiki-pipeline.mjs），
- *    不再假设 ~/bin（WSL）。
+ *  - 管线位置优先取本包自带的 scripts/llm-wiki-pipeline.mjs（从 import.meta.url 解析），
+ *    只有它不存在时才回退到 $DSH_HOME/bin/llm-wiki-pipeline.mjs。
+ *    这样「本地仓库 link 安装」时改仓库里的 scripts 立即生效，不必再往 ~/.dsh/bin 拷一份。
  *  - 子进程用 process.execPath 启动；DSH Host 设置 ELECTRON_RUN_AS_NODE=1，因此 Electron
  *    exe 会以 Node 方式运行 .mjs。若将来该环境变量消失，可改为显式解析内置 node.exe。
  */
 import { readFileSync, statSync, existsSync, readdirSync, writeFileSync, unlinkSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { spawn } from "node:child_process";
 
 export const name = "dsh-llm-wiki";
 export const inject = ["systemPrompt"];
 
+const PLUGIN_DIR = dirname(fileURLToPath(import.meta.url));
 const DSH_HOME = process.env.DSH_HOME || join(process.env.USERPROFILE || homedir(), ".dsh");
 const DEFAULT_VAULT = process.platform === "win32"
-  ? "D:\\DB\\Obsidian\\LLM-Wiki"
-  : "/mnt/d/DB/Obsidian/LLM-Wiki";
-const PIPELINE = join(DSH_HOME, "bin", "llm-wiki-pipeline.mjs");
+  ? "D:\\学习\\AI知识库\\LLM-Wiki"
+  : "/mnt/d/学习/AI知识库/LLM-Wiki";
+// 优先用包内自带脚本（link 安装时即本地仓库），回退到 ~/.dsh/bin 的历史布局
+const PIPELINE_BUNDLED = join(PLUGIN_DIR, "..", "scripts", "llm-wiki-pipeline.mjs");
+const PIPELINE = existsSync(PIPELINE_BUNDLED) ? PIPELINE_BUNDLED : join(DSH_HOME, "bin", "llm-wiki-pipeline.mjs");
 const SESSIONS_ROOT = join(DSH_HOME, "sessions");
 const HINT_DIR = join(DSH_HOME, "llm-wiki");
 const HINT_FILE = join(HINT_DIR, "compile-hint.json");

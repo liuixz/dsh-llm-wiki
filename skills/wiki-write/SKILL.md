@@ -1,6 +1,6 @@
 ---
 name: wiki-write
-description: 向 LLM-Wiki 知识库（D:\\DB\\Obsidian\\LLM-Wiki）写入新知识。当会话中学到新知识、做出决策、发现踩坑经验、用户要求记录/保存知识到 wiki 时使用。写入纪律：先查重、选对分类、frontmatter 完整（OKF v0.2）、wikilink>=2、中文标题。
+description: 向 LLM-Wiki 知识库（D:\\学习\\AI知识库\\LLM-Wiki）写入新知识。当会话中学到新知识、做出决策、发现踩坑经验、用户要求记录/保存知识到 wiki 时使用。写入纪律：先查重、选对分类、frontmatter 完整（OKF v0.2）、wikilink>=2、中文标题。
 ---
 
 # LLM-Wiki 知识写入

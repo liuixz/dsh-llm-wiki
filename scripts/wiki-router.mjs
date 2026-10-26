@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const VAULT = process.env.LLM_WIKI_VAULT || "D:/DB/Obsidian/LLM-Wiki";
+const VAULT = process.env.LLM_WIKI_VAULT || "D:/学习/AI知识库/LLM-Wiki";
 const RAW = path.join(VAULT, "raw", "sessions");
 const HAN = String.fromCharCode(0x4e00) + "-" + String.fromCharCode(0x9fff);
 const CJK = new RegExp("[" + HAN + "]", "g");

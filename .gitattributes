@@ -1,0 +1,17 @@
+# 统一行尾：脚本与源码一律 LF，避免 Windows 上 checkout 出 CRLF 后在 Linux/WSL 里
+# 报 "bad interpreter: /usr/bin/env bash^M"。
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.mjs   text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.md    text eol=lf
+
+# PowerShell 两边都能跑，保持 LF 也兼容（PS 5.1 以上无问题）
+*.ps1   text eol=lf
+
+# 二进制
+*.png   binary
+*.jpg   binary
+*.zip   binary

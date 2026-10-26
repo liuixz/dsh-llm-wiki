@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // stale-review.mjs — 每周 stale 复核清单（只读）
 import fs from "node:fs"; import path from "node:path";
-const VAULT = process.env.LLM_WIKI_VAULT || "D:/DB/Obsidian/LLM-Wiki";
-const OUT = (process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out")+1] : "D:/DB/DSH/reports");
+const VAULT = process.env.LLM_WIKI_VAULT || "D:/学习/AI知识库/LLM-Wiki";
+const OUT = (process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out")+1] : (process.env.LLM_WIKI_REPORTS || ((process.env.USERPROFILE || "") + "/.dsh/llm-wiki/reports")));
 const LIMIT = Number(process.argv.includes("--limit") ? process.argv[process.argv.indexOf("--limit")+1] : 20);
 const TODAY = new Date().toISOString().slice(0,10);
 const read = p => { try { return fs.readFileSync(p,"utf8"); } catch { return ""; } };

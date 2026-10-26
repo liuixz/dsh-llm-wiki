@@ -1,6 +1,6 @@
 ---
 name: wiki-search
-description: 在 LLM-Wiki 知识库（D:\\DB\\Obsidian\\LLM-Wiki）中检索知识。当用户问"之前怎么做的、以前的决策、踩坑经验、某主题的知识"或明确提到 LLM-Wiki/知识库/wiki 时使用。入口：grep 关键词搜索 → read 精读原文 → 引用页面路径。
+description: 在 LLM-Wiki 知识库（D:\\学习\\AI知识库\\LLM-Wiki）中检索知识。当用户问"之前怎么做的、以前的决策、踩坑经验、某主题的知识"或明确提到 LLM-Wiki/知识库/wiki 时使用。入口：grep 关键词搜索 → read 精读原文 → 引用页面路径。
 ---
 
 # LLM-Wiki 知识检索
@@ -11,7 +11,7 @@ description: 在 LLM-Wiki 知识库（D:\\DB\\Obsidian\\LLM-Wiki）中检索知�
 > mnemon 按 H2 小节切块，命中形如 `[页面｜小节] …（来源: path#小节）`，按该路径回 wiki 精读对应小节。
 > `status: archived` 的页面仍可 grep 到，但默认优先非 archived；它们不参与 mnemon 同步，回答时注明「已归档」。
 
-## 库结构（11 分类，根：`D:\DB\Obsidian\LLM-Wiki\wiki\`）
+## 库结构（11 分类，根：`D:\学习\AI知识库\LLM-Wiki\wiki\`）
 
 | 分类 | 目录 | 内容 |
 |---|---|---|
@@ -34,7 +34,7 @@ description: 在 LLM-Wiki 知识库（D:\\DB\\Obsidian\\LLM-Wiki）中检索知�
    - **仅用于知识型提问**；"本机怎么装/怎么修/上次做到哪"这类运维问题应走会话历史与热记忆，别用本脚本硬查。
 2. **导航优先**：先读 `wiki/index.md`（管线生成的导航页，含分类计数、热投影与最近更新）；已知分类时直接看该分类目录，比全文搜索快。
 3. **关键词搜索**：用 DSH 的 `grep` 工具（自带 ripgrep，**不依赖 PATH 上的 rg**）：
-   - `grep({ pattern: "关键词", path: "D:\\DB\\Obsidian\\LLM-Wiki\\wiki", include: "*.md" })`
+   - `grep({ pattern: "关键词", path: "D:\\学习\\AI知识库\\LLM-Wiki\\wiki", include: "*.md" })`
    - 中文关键词直接搜；多主题用 `A|B`；需要排除 `_archived` / `trash` 时缩小 `path` 到具体分类目录。
    - 命令行等价物（本机装了 ripgrep 时）：`rg -l "关键词" wiki/ --glob "*.md"`。
 4. **精读原文**：命中后 `read` 目标文件。**先读 frontmatter 预判**（前 20 行）：`type`、`description`、`related`、`stale_after`/`status`——不相关或已过时（当前日期 > stale_after 或 status: stale）直接跳过，相关再全文精读。

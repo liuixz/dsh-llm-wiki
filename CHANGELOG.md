@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.11.0 — 2026-10-26
+
+### 安装方式：改为本地仓库 link（破坏性变更）
+
+- profile `package.json` 里注册 `"dsh-llm-wiki": "link:<本仓库>"` 并加入 `dsh.profile.bundles`；插件入口由本包自带的 `cordis.patch.yml` 提供，profile 的 `cordis.patch.yml` **只写配置覆盖**（`id: llm-wiki` + `config.vault`），不再写 `insert` 块。
+- 收益：改仓库代码 → 重启 DSH 即生效，不必再向 `~/.dsh/profiles/<profile>/` 或 `~/.dsh/bin` 拷文件。
+- 安装脚本自动清理旧版手工 `- insert:` 块（匹配 `name: ./dsh-llm-wiki.mjs` 与 `# dsh-llm-wiki` 注释），清理前备份原 patch。
+- 保留旧路径：`install.sh --copy-mode` / `install.ps1 -CopyMode`。
+
+### 插件
+
+- 管线脚本解析改为**包内优先**：从 `import.meta.url` 解析 `<包>/scripts/llm-wiki-pipeline.mjs`，只有它不存在才回退 `$DSH_HOME/bin/llm-wiki-pipeline.mjs`。link 安装下仓库里的脚本改动立即生效。
+- 默认 vault 按平台收敛；报告目录默认值不再硬编码 `D:\DB\...`。
+
+### 安装脚本
+
+- `install.ps1` 重写：新增 `-NoInstall`（只改配置不跑 pnpm）、`-CopyMode`（旧手工部署），默认 link 模式；patch 写入统一走 .NET UTF-8（无 BOM），避免 PowerShell 5.1 的 `-Encoding utf8` 产生 BOM 与代码页乱码；中文 vault 路径实测无损坏。
+- `install.sh` 重写：link 模式优先，新增 `--no-install` / `--copy-mode`；已存在 `id: llm-wiki` 时只更新 `vault` 一行，其余保持原样；vault 值经临时文件传给 node，绕开 Git-Bash/MSYS 对 `/x/y` 形式路径的自动改写。
+- 两个脚本均**幂等**：重复运行不重复追加、不抖动文件；已在临时 HOME 下实测（首次清理旧块 / 二次无变更 / 第三次改 vault / 中文路径）。
+
+### 文档
+
+- README：组件表改为 link 安装的落点，安装章节拆为 A(link，推荐) / B(bundle) / C(手工拷贝) 三种方式，命令示例去掉 `~/.dsh/bin` 硬编码。
+- `LLM_WIKI_REPORTS` 默认值更正为 `~/.dsh/llm-wiki/reports`。
+
 ## 0.10.7 — 2026-10-24
 
 - 预算淘汰建议：候选超出 2048B 目标时，输出“需释放多少 B”+低价值条目建议（受保护规则不列入），只提案不自动删。

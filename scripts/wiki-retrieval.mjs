@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-const VAULT = process.env.LLM_WIKI_VAULT || "D:/DB/Obsidian/LLM-Wiki";
+const VAULT = process.env.LLM_WIKI_VAULT || "D:/学习/AI知识库/LLM-Wiki";
 const WIKI = path.join(VAULT, "wiki");
 const EXCLUDE_DIRS = new Set(["_archived", "trash", ".smart-env", "索引"]);
 export const CATS = ["决策", "发现", "概念", "项目", "流程", "命令", "规则", "提示", "记忆", "基因", "引用", "patterns"];

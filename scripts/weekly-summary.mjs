@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // weekly-summary.mjs — 每周一页：任务结果 / 健康变化 / 待你处理的清单
 import fs from "node:fs"; import path from "node:path"; import { execFileSync } from "node:child_process";
-const REPORTS = process.env.LLM_WIKI_REPORTS || "D:/DB/DSH/reports";
+const REPORTS = (process.env.LLM_WIKI_REPORTS || ((process.env.USERPROFILE || "") + "/.dsh/llm-wiki/reports"));
 const HEALTH = path.join(REPORTS, "health");
 const OUT = path.join(REPORTS, "weekly");
 const TODAY = new Date().toISOString().slice(0, 10);

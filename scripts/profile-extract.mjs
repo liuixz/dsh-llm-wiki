@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // profile-extract.mjs v3 —— 会话 → 偏好证据包（行为事件 + LLM/规则抽取，只读）
-// 用法: node profile-extract.mjs [--since 7d] [--out D:/DB/DSH/reports/profile-evidence] [--max 20] [--no-llm]
+// 用法: node profile-extract.mjs [--since 7d] [--out ~/.dsh/llm-wiki/reports/profile-evidence] [--max 20] [--no-llm]
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -10,12 +10,12 @@ import { zstdDecompressSync } from "node:zlib";
 const args = process.argv.slice(2);
 const arg = (n, d) => { const i = args.indexOf("--" + n); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
 const sinceDays = Number(String(arg("since", "7d")).replace(/d$/, "")) || 7;
-const outDir = arg("out", "D:/DB/DSH/reports/profile-evidence");
+const outDir = arg("out", (process.env.LLM_WIKI_REPORTS || ((process.env.USERPROFILE || "") + "/.dsh/llm-wiki/reports")) + "/profile-evidence");
 const maxSessions = Number(arg("max", "20")) || 20;
 const NO_LLM = args.includes("--no-llm");
 const RECAPS = args.includes("--recaps");
 const MULTI = !args.includes("--single-angle") && process.env.PROFILE_MULTI !== "0";
-const RECAP_DIR = arg("recaps-dir", "D:/DB/Obsidian/LLM-Wiki/raw/sessions/dsh");
+const RECAP_DIR = arg("recaps-dir", "D:/学习/AI知识库/LLM-Wiki/raw/sessions/dsh");
 const HOME = os.homedir();
 const SESSIONS = path.join(HOME, ".dsh", "sessions");
 const CACHE = path.join(outDir, ".evidence-cache.json");

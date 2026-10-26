@@ -3,7 +3,7 @@ Description=Ollama 兼容 embedding 代理（11434 -> SiliconFlow）
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/node %h/bin/embed-proxy.mjs
+ExecStart=@EXEC@
 Restart=always
 RestartSec=5
 UMask=077

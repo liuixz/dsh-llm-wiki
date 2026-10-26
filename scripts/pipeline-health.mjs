@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // pipeline-health.mjs — 每日健康快照（CSV）+ 召回探针
 import fs from "node:fs"; import path from "node:path"; import { execFileSync } from "node:child_process";
-const VAULT = process.env.LLM_WIKI_VAULT || "D:/DB/Obsidian/LLM-Wiki";
-const OUT = process.env.LLM_WIKI_HEALTH_DIR || "D:/DB/DSH/reports/health";
+const VAULT = process.env.LLM_WIKI_VAULT || "D:/学习/AI知识库/LLM-Wiki";
+const OUT = process.env.LLM_WIKI_HEALTH_DIR || (process.env.LLM_WIKI_REPORTS || ((process.env.USERPROFILE || "") + "/.dsh/llm-wiki/reports")) + "/health";
 const STATE = process.env.LLM_WIKI_STATE || path.join(process.env.USERPROFILE || "", ".dsh", "llm-wiki", "pipeline-state.json");
 const USERMD = process.env.USER_MD || path.join(process.env.USERPROFILE || "", ".mnemon", "runtime", "USER.md");
 const BIN = process.env.LLM_WIKI_BIN || path.join(process.env.USERPROFILE || "", ".dsh", "bin");
@@ -17,7 +17,7 @@ const stale=pages.filter(p=>{ if(/status:\s*archived/.test(p.text.slice(0,1500))
 const logTxt=read(path.join(VAULT,"log.md")); const mlog=[...logTxt.matchAll(/lint:(\d+)问题/g)]; const lintIssues=mlog.length?Number(mlog[0][1]):-1;
 let syncPages=0, syncChunks=0; try{ const st=JSON.parse(read(STATE)); for(const k of Object.keys(st)) if(k.startsWith("wiki")){ syncPages++; syncChunks+=(st[k].chunks||[]).length; } }catch{}
 const userMd=read(USERMD); const userEntries=(userMd.match(/\n§\n/g)||[]).length+(userMd.trim()?1:0); const userBytes=Buffer.byteLength(userMd,"utf8");
-const REPORTS = process.env.LLM_WIKI_REPORTS || "D:/DB/DSH/reports";
+const REPORTS = (process.env.LLM_WIKI_REPORTS || ((process.env.USERPROFILE || "") + "/.dsh/llm-wiki/reports"));
 const candFile=path.join(REPORTS,"profile-candidate-"+TODAY+".jsonl"); const candCount=fs.existsSync(candFile)?read(candFile).trim().split(/\r?\n/).filter(Boolean).length:0;
 const probes=[["mnemon 备份策略","Mnemon 记忆栈运维"],["LLM-Wiki 记忆层改造","记忆层改造方案"],["wsl2 wezterm 配置","wsl2-wezterm"],["taobao native 路径","taobao-native"],["画像 预算 2KB","习惯与偏好"],["obsidian-git 双远端","Obsidian"]];
 let hit=0; for(const pr of probes){ try{ const out=execFileSync("node",[path.join(BIN,"wiki-retrieval.mjs"),pr[0],"--json","--limit","3","--no-mnemon"],{encoding:"utf8",timeout:30000}); const j=JSON.parse(out); const ok=(j.results||[]).slice(0,3).some(r=>String((r.rel||"")+(r.title||"")).toLowerCase().includes(String(pr[1]).toLowerCase())); if(ok) hit++; }catch{} }

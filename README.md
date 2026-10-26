@@ -40,12 +40,12 @@
 
 ## 组件
 
-| 组件 | 文件 | 部署位置（Windows 桌面版） |
+| 组件 | 文件 | 部署位置（link 安装） |
 |---|---|---|
-| 生命周期插件 | `plugin/dsh-llm-wiki.mjs` | `%USERPROFILE%\.dsh\profiles\desktop\` |
-| 写入技能 | `skills/wiki-write/SKILL.md` | `%USERPROFILE%\.agents\skills\wiki-write\` |
-| 检索技能 | `skills/wiki-search/SKILL.md` | `%USERPROFILE%\.agents\skills\wiki-search\` |
-| 管线 | `scripts/llm-wiki-pipeline.mjs` | `%USERPROFILE%\.dsh\bin\` |
+| 生命周期插件 | `plugin/dsh-llm-wiki.mjs` | 由本包 `cordis.patch.yml` 挂载，无需拷贝 |
+| 写入技能 | `skills/wiki-write/SKILL.md` | `%USERPROFILE%\.agents\skills\wiki-write\`（由安装脚本拷贝） |
+| 检索技能 | `skills/wiki-search/SKILL.md` | `%USERPROFILE%\.agents\skills\wiki-search\`（由安装脚本拷贝） |
+| 管线 | `scripts/llm-wiki-pipeline.mjs` | 包内，插件从 `import.meta.url` 解析 |
 | 融合检索 | `scripts/wiki-retrieval.mjs` | 同上 |
 | 查询路由 | `scripts/wiki-router.mjs` | 同上 |
 | 画像抽取 | `scripts/profile-extract.mjs` | 同上 |
@@ -57,20 +57,16 @@
 | stale 复核 | `scripts/stale-review.mjs` | 同上 |
 | 健康快照 | `scripts/pipeline-health.mjs` | 同上 |
 | 向量代理（可选） | `scripts/embed-proxy.mjs` | 仅在 embedding 端点只认 Ollama 协议时需要 |
-| 定时（Linux） | `systemd/*` | `~/.config/systemd/user/` |
-| 安装脚本 | `install.sh` / `install.ps1` | 复制组件 + 建计划任务 |
+| 定时（Linux） | `systemd/*` | `~/.config/systemd/user/`，ExecStart 直接指向仓库内脚本 |
+| 安装脚本 | `install.sh` / `install.ps1` | 注册 link 依赖 + 写配置覆盖 + 装技能 + 建计划任务 |
+
+> link 安装下**脚本不落盘到 `~/.dsh/bin`**：计划任务、systemd unit 与插件都直接引用仓库里的 `scripts/`，改了仓库代码重启 dsh 即生效。加 `--copy-mode` / `-CopyMode` 才回到旧的手工拷贝方式。
 
 ## 安装
 
-> **平台范围**：Windows 桌面版为优先支持路径（插件 + 技能 + 9 个脚本 + 5 个计划任务）。Linux/WSL 目前 `install.sh` 只覆盖插件、技能、管线与 systemd 的 pipeline timer；编译候选、stale 复核、健康快照三个周任务**未随仓库提供 systemd timer**，需要时自行加。
+> **平台范围**：Windows 桌面版为优先支持路径（插件 + 技能 + 9 个脚本 + 5 个计划任务）。Linux/WSL 下 `install.sh` 覆盖插件、技能、管线与 5 个 systemd timer。
 
-**方式 A：bundle（只装插件）**
-
-```bash
-dsh plugin --profile web add github:iwtown/dsh-llm-wiki
-```
-
-**方式 B：全量本地部署（推荐）**
+**方式 A：本地仓库 link（推荐，便于自己改代码）**
 
 ```bash
 git clone https://github.com/iwtown/dsh-llm-wiki.git
@@ -79,12 +75,28 @@ cd dsh-llm-wiki && ./install.sh          # Linux / WSL
 .\install.ps1                             # Windows（-NoSchedule 跳过定时任务）
 ```
 
-然后重启 `dsh web` 让插件生效，并首次全量同步：
+做的事：把 `dsh-llm-wiki` 写成 profile `package.json` 的 `link:<本仓库>` 依赖并加入 `dsh.profile.bundles` → 在 profile `cordis.patch.yml` 里只写 `id: llm-wiki` 的配置覆盖（`vault` 等；插件入口由本包 `cordis.patch.yml` 提供，不重复 insert）→ 拷贝两个技能 → 建计划任务。脚本幂等，随时重跑；改 `-Vault` / `LLM_WIKI_VAULT` 再跑一次即可改 vault 路径。
+
+然后重启 DSH 让插件生效，并首次全量同步：
 
 ```bash
-node ~/.dsh/bin/llm-wiki-pipeline.mjs --all
-node ~/.dsh/bin/pipeline-health.mjs       # 生成首份健康快照
+node <仓库>/scripts/llm-wiki-pipeline.mjs --all
+node <仓库>/scripts/pipeline-health.mjs   # 生成首份健康快照
 ```
+
+**方式 B：bundle（只装插件，脚本走远端包）**
+
+```bash
+dsh plugin --profile desktop add github:iwtown/dsh-llm-wiki
+```
+
+**方式 C：手工拷贝（旧路径）**
+
+```bash
+./install.sh --copy-mode    # 或 .\install.ps1 -CopyMode
+```
+
+拷 `plugin/`、`scripts/`、`profile-schema.json` 到 `%USERPROFILE%\.dsh\profiles\desktop\` 与 `%USERPROFILE%\.dsh\bin\`，patch 里写完整 `insert` 块。仅在前两种方式不可用时使用。
 
 ### 计划任务（Windows）
 
@@ -117,8 +129,8 @@ node ~/.dsh/bin/pipeline-health.mjs       # 生成首份健康快照
 ## 检索路由
 
 ```bash
-node ~/.dsh/bin/wiki-router.mjs "上次怎么修 gnome 黑屏"   # 返回 route: wiki|session|live|docs|hot
-node ~/.dsh/bin/wiki-retrieval.mjs "关键词" --limit 5 --json
+node <仓库>/scripts/wiki-router.mjs "上次怎么修 gnome 黑屏"   # 返回 route: wiki|session|live|docs|hot
+node <仓库>/scripts/wiki-retrieval.mjs "关键词" --limit 5 --json
 ```
 
 融合策略：BM25 + mnemon 向量 RRF（K=5，权重 1.0/0.5，标题加权 4）。调参用 `LLM_WIKI_RRF_K / _WB / _WM / TITLE_BOOST / CAT_WEIGHT`。
@@ -126,8 +138,8 @@ node ~/.dsh/bin/wiki-retrieval.mjs "关键词" --limit 5 --json
 ## 画像蒸馏（v3：本体 + 决策 + 保真）
 
 ```bash
-node ~/.dsh/bin/profile-extract.mjs --since 30d    # 3 角度抽取 + 行为事件
-node ~/.dsh/bin/profile-distill.mjs --since 30d    # 复核 → 候选 → USER.md diff
+node <仓库>/scripts/profile-extract.mjs --since 30d    # 3 角度抽取 + 行为事件
+node <仓库>/scripts/profile-distill.mjs --since 30d    # 复核 → 候选 → USER.md diff
 ```
 
 - **规则进 USER.md**（每轮注入，≤2KB 目标），**证据留画像页**（`profile_scope: evidence`）与记忆空间；
@@ -150,7 +162,7 @@ node ~/.dsh/bin/profile-distill.mjs --since 30d    # 复核 → 候选 → USER.
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `LLM_WIKI_VAULT` | `/mnt/d/DB/Obsidian/LLM-Wiki` | vault 路径（Windows 默认 `D:\DB\Obsidian\LLM-Wiki`） |
+| `LLM_WIKI_VAULT` | `/mnt/d/学习/AI知识库/LLM-Wiki` | vault 路径（Windows 默认 `D:\学习\AI知识库\LLM-Wiki`） |
 | `LLM_WIKI_STATE` | `~/.dsh/llm-wiki/pipeline-state.json` | 增量状态 |
 | `LLM_WIKI_SYNC_EXCLUDE` | `引用` | 不入库分类 |
 | `LLM_WIKI_SYNC_DISCOVERY` | `recap-only` | 发现类分级 |
@@ -159,7 +171,7 @@ node ~/.dsh/bin/profile-distill.mjs --since 30d    # 复核 → 候选 → USER.
 | `LLM_WIKI_LLM_MODELS` | `glm-4-flash-250414,glm-4.7-flash,THUDM/GLM-4-9B-0414` | 抽取链（免费） |
 | `LLM_WIKI_REVIEW_MODELS` | `deepseek-flash` | 复核链（官网） |
 | `LLM_WIKI_REVIEW_ENDPOINT` | `https://api.deepseek.com/v1` | 官网端点 |
-| `LLM_WIKI_REPORTS` | `D:\DB\DSH\reports` | 候选/清单/健康/周报输出目录 |
+| `LLM_WIKI_REPORTS` | `~/.dsh/llm-wiki/reports` | 候选/清单/健康/周报输出目录（`<仓库>/scripts` 与插件默认值一致） |
 | `PROFILE_MAX_ADD` | `12` | 单批候选上限 |
 | `PROFILE_SCHEMA` | 同目录 profile-schema.json | 画像本体路径 |
 | `PROFILE_REVIEW` | 开 | off 跳过复核（仅测试） |
@@ -213,6 +225,7 @@ dsh-llm-wiki/
 
 ## 版本
 
+- `0.11.0`：安装方式改为**本地仓库 link**（`link:` 依赖 + bundle patch，不再向 profile 拷贝插件）；插件优先使用包内 `scripts/`，改仓库代码重启即生效；vault 默认路径跨平台收敛（Windows `D:\学习\AI知识库\LLM-Wiki`，Linux `/mnt/d/学习/AI知识库/LLM-Wiki`）；`LLM_WIKI_REPORTS` 默认改为 `~/.dsh/llm-wiki/reports`；安装脚本幂等（重复运行不重复写 patch，改 vault 只改一行）并自动清理旧版手工 insert 块。
 - `0.10.7`：预算淘汰建议（只读提案，受保护规则除外）。
 - `0.10.6`：schema 关键词补充（候选方案对比）。
 - `0.10.5`：schema 关键词补充（调研评估/目标验收/结论边界）。

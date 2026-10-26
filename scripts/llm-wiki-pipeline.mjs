@@ -23,7 +23,7 @@ process.stdout.on("error", () => {});
 process.stderr.on("error", () => {});
 import { createServer } from "node:http";
 
-const VAULT = process.env.LLM_WIKI_VAULT || (process.platform === "win32" ? "D:\\DB\\Obsidian\\LLM-Wiki" : "/mnt/d/DB/Obsidian/LLM-Wiki");
+const VAULT = process.env.LLM_WIKI_VAULT || (process.platform === "win32" ? "D:\\学习\\AI知识库\\LLM-Wiki" : "/mnt/d/学习/AI知识库/LLM-Wiki");
 const WIKI = join(VAULT, "wiki");
 const STATE_DIR = join(homedir(), ".dsh/llm-wiki");
 const STATE_FILE = process.env.LLM_WIKI_STATE || join(STATE_DIR, "pipeline-state.json");
@@ -777,6 +777,31 @@ function rebuildIndex(pages) {
   return md;
 }
 
+// 分类索引页：wiki/index.md 的分类链接指向 wiki/<分类>/index.md，
+// 该文件由本函数生成，否则导航页里的分类入口全是死链。
+function rebuildCategoryIndexes(pages) {
+  const cats = ["决策","发现","概念","项目","流程","命令","规则","提示","记忆","基因","引用"];
+  const byCat = {};
+  for (const p of pages) (byCat[p.cat] = byCat[p.cat] || []).push(p);
+  const written = [];
+  for (const c of cats) {
+    const list = (byCat[c] || []).sort((a, b) => b.mtime - a.mtime);
+    if (!list.length) continue;
+    let md = "# " + c + "\n\n> 此页面由管线自动维护（llm-wiki-pipeline.mjs --index）。共 " + list.length + " 条。\n\n";
+    md += "上级：[[index]]\n\n## 条目\n\n";
+    for (const p of list) {
+      const name = p.rel.replace(/\\/g, "/").replace(/^wiki\//, "").replace(/\.md$/, "");
+      const desc = String(p.fm.description || "").trim();
+      md += "* [[" + name + "]]" + (desc ? " — " + desc : "") + "\n";
+    }
+    const dir = join(WIKI, c);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "index.md"), md);
+    written.push(c);
+  }
+  return written;
+}
+
 function loadState() { try { return JSON.parse(readFileSync(STATE_FILE, "utf8")); } catch { return {}; } }
 function saveState(s) { mkdirSync(STATE_DIR, { recursive: true }); writeFileSync(STATE_FILE, JSON.stringify(s, null, 1)); }
 // 变更检测改为按页的 H2 块哈希（见 chunkPage / syncMemory），不再用 mtime 单因子。
@@ -1164,8 +1189,14 @@ async function main() {
   }
   if (RUN.index) {
     const md = rebuildIndex(pages);
-    if (!DRY) { writeFileSync(join(WIKI, "index.md"), md); console.log("\n== index ==\n已重建 wiki/index.md"); summary.push("index:重建"); }
-    else console.log("\n== index ==\n(--dry-run) 将重建 wiki/index.md");
+    if (!DRY) {
+      writeFileSync(join(WIKI, "index.md"), md);
+      const catIdx = rebuildCategoryIndexes(pages);
+      console.log("\n== index ==\n已重建 wiki/index.md");
+      console.log("分类索引页:", catIdx.length ? catIdx.join("/") : "(无)");
+      summary.push("index:重建");
+    }
+    else console.log("\n== index ==\n(--dry-run) 将重建 wiki/index.md 与分类索引页");
   }
   if (RUN.usage) {
     console.log("\n== usage ==");

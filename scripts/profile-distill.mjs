@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // profile-distill.mjs v2 —— 画像蒸馏（只读）：画像页 + 会话 + 记忆空间 + USER.md → 候选/冲突/过期/预算
-// 用法: node profile-distill.mjs [--since 7d] [--out D:/DB/DSH/reports] [--max 30] [--profile <画像页>]
+// 用法: node profile-distill.mjs [--since 7d] [--out ~/.dsh/llm-wiki/reports] [--max 30] [--profile <画像页>]
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -11,11 +11,11 @@ import { DatabaseSync } from "node:sqlite";
 const args = process.argv.slice(2);
 const arg = (name, def) => { const i = args.indexOf("--" + name); return i >= 0 && args[i + 1] ? args[i + 1] : def; };
 const sinceDays = Number(String(arg("since", "7d")).replace(/d$/, "")) || 7;
-const outDir = arg("out", "D:/DB/DSH/reports");
+const outDir = arg("out", (process.env.LLM_WIKI_REPORTS || ((process.env.USERPROFILE || "") + "/.dsh/llm-wiki/reports")));
 const maxSessions = Number(arg("max", "30")) || 30;
 const HOME = os.homedir();
 const USER_MD = process.env.USER_MD || path.join(HOME, ".mnemon", "runtime", "USER.md");
-const PROFILE = process.env.PROFILE_PAGE || arg("profile", "D:/DB/Obsidian/LLM-Wiki/wiki/项目/习惯与偏好（Agent 自适应画像）.md");
+const PROFILE = process.env.PROFILE_PAGE || arg("profile", "D:/学习/AI知识库/LLM-Wiki/wiki/项目/习惯与偏好（Agent 自适应画像）.md");
 const SESSIONS = path.join(HOME, ".dsh", "sessions");
 const DB = path.join(HOME, ".mnemon", "data", "default", "mnemon.db");
 const cutoff = Date.now() - sinceDays * 864e5;
@@ -101,7 +101,7 @@ function preferenceMemories() {
 }
 
 // ── evidence v3 加载（profile-extract.mjs 产出）──
-const EVID_DIR = process.env.PROFILE_EVIDENCE_DIR || "D:/DB/DSH/reports/profile-evidence";
+const EVID_DIR = process.env.PROFILE_EVIDENCE_DIR || (process.env.LLM_WIKI_REPORTS || ((process.env.USERPROFILE || "") + "/.dsh/llm-wiki/reports")) + "/profile-evidence";
 function loadEvidence() {
   const out = [];
   try {

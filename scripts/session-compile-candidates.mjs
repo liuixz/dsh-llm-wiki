@@ -3,9 +3,9 @@
 import fs from "node:fs"; import path from "node:path"; import os from "node:os";
 const args = process.argv.slice(2);
 const arg = (n,d)=>{const i=args.indexOf("--"+n);return i>=0&&args[i+1]?args[i+1]:d;};
-const VAULT = process.env.LLM_WIKI_VAULT || "D:/DB/Obsidian/LLM-Wiki";
+const VAULT = process.env.LLM_WIKI_VAULT || "D:/学习/AI知识库/LLM-Wiki";
 const RAW = path.join(VAULT,"raw/sessions/dsh");
-const OUT = arg("out","D:/DB/DSH/reports");
+const OUT = arg("out",(process.env.LLM_WIKI_REPORTS || ((process.env.USERPROFILE || "") + "/.dsh/llm-wiki/reports")));
 const TODAY = new Date().toISOString().slice(0,10);
 const HOME = os.homedir();
 const read = p => { try { return fs.readFileSync(p,"utf8"); } catch { return ""; } };
