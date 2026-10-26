@@ -14,6 +14,12 @@
 - 管线脚本解析改为**包内优先**：从 `import.meta.url` 解析 `<包>/scripts/llm-wiki-pipeline.mjs`，只有它不存在才回退 `$DSH_HOME/bin/llm-wiki-pipeline.mjs`。link 安装下仓库里的脚本改动立即生效。
 - 默认 vault 按平台收敛；报告目录默认值不再硬编码 `D:\DB\...`。
 
+### 脚本
+
+- `pipeline-health.mjs`：检索脚本路径同样改为**本脚本同目录优先**，不再固定找 `~/.dsh/bin/wiki-retrieval.mjs`（link 安装下那里根本没有，导致 6 条召回探针全部落空、`probeHit` 恒为 0/6、误报返回码 2）。
+- `pipeline-health.mjs`：召回探针改为**从本 vault 页面的 `title` 按固定步长抽样**（最多 6 条），用它做查询、期望命中同名页；换知识库也有意义，不再写死某个库里才存在的页面名。空 vault 退回两条内置样例。
+- `stale-review.mjs` / `wiki-router.mjs`：清单与路由输出里的命令改用脚本自身所在目录拼接，去掉写死的 `C:\Users\wtown\.dsh\bin\`。
+
 ### 安装脚本
 
 - `install.ps1` 重写：新增 `-NoInstall`（只改配置不跑 pnpm）、`-CopyMode`（旧手工部署），默认 link 模式；patch 写入统一走 .NET UTF-8（无 BOM），避免 PowerShell 5.1 的 `-Encoding utf8` 产生 BOM 与代码页乱码；中文 vault 路径实测无损坏。

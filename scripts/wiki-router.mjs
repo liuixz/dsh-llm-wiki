@@ -3,6 +3,11 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// 本脚本所在目录：link 安装下即 仓库/scripts，命令里据此拼路径，避免写死某台机器的安装位置
+const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
+const RETRIEVAL_CMD = 'node "' + path.join(SELF_DIR, "wiki-retrieval.mjs") + '" "<原问题>" --limit 5';
 
 const VAULT = process.env.LLM_WIKI_VAULT || "D:/学习/AI知识库/LLM-Wiki";
 const RAW = path.join(VAULT, "raw", "sessions");
@@ -39,7 +44,7 @@ const RULES = {
     strong: ["排查", "修复", "定位", "什么是", "区别", "原理", "最佳实践", "架构", "选型", "经验", "总结", "决策", "对比", "概念", "方法", "定义", "机制", "为什么这样", "怎么设计"],
     generic: ["为什么", "如何", "怎么", "是什么", "什么时候", "哪些", "包括", "吗"],
     why: "已编译成知识页，走融合检索最省 token",
-    action: 'node "C:/Users/wtown/.dsh/bin/wiki-retrieval.mjs" "<原问题>" --limit 5',
+    action: RETRIEVAL_CMD,
   },
 };
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // stale-review.mjs — 每周 stale 复核清单（只读）
-import fs from "node:fs"; import path from "node:path";
+import fs from "node:fs"; import path from "node:path"; import { fileURLToPath } from "node:url";
 const VAULT = process.env.LLM_WIKI_VAULT || "D:/学习/AI知识库/LLM-Wiki";
 const OUT = (process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out")+1] : (process.env.LLM_WIKI_REPORTS || ((process.env.USERPROFILE || "") + "/.dsh/llm-wiki/reports")));
 const LIMIT = Number(process.argv.includes("--limit") ? process.argv[process.argv.indexOf("--limit")+1] : 20);
@@ -26,6 +26,8 @@ const top=items.slice(0,LIMIT);
 const md=["# stale 复核清单 "+TODAY,"", "stale 总数: "+items.length+"；本批: "+top.length+"（按质量低/最久未更新/被引用多排序）","","> 只读：在会话中逐页决定 保留/更新/归档，再执行。","","| # | 页面 | 质量 | 未更新 | 被引用 | 建议 |","|---|---|---|---|---|---|"];
 top.forEach((it,i)=>md.push("| "+(i+1)+" | "+it.title+"（"+it.rel+"） | "+it.q+" | "+it.days+"d | "+it.inbound+" | "+(it.q<=2?"归档":"更新或保留")+" |"));
 md.push("","## 可直接执行的命令","");
-for(const it of top) md.push('node "C:\\Users\\wtown\\.dsh\\bin\\llm-wiki-pipeline.mjs" --rate "'+it.rel+'" --rating outdated');
+// 命令按本脚本所在目录拼接：link 安装下即仓库/scripts，不再写死某一台机器的安装路径
+const SELF = path.dirname(fileURLToPath(import.meta.url));
+for(const it of top) md.push('node "'+path.join(SELF,"llm-wiki-pipeline.mjs")+'" --rate "'+it.rel+'" --rating outdated');
 const outFile=path.join(OUT,"stale-review-"+TODAY+".md"); fs.mkdirSync(OUT,{recursive:true}); fs.writeFileSync(outFile,md.join("\n")+"\n","utf8");
 console.log(JSON.stringify({date:TODAY,total:items.length,listed:top.length,out:outFile}));
