@@ -296,7 +296,13 @@ if ($NoSchedule) {
       $lines += ('echo [%DATE% %TIME%] exit=%ERRORLEVEL% >> ' + $q + $log + $q)
       $lines += 'if errorlevel 1 start "" mshta "javascript:alert(''LLM-Wiki task failed - see reports/health/ALERT.md'');close()"'
       $path = Join-Path $Bin ($name + '.cmd')
-      Set-Content -Path $path -Value $lines -Encoding ascii
+      # UTF-8 without BOM + CRLF. The vault path may contain non-ASCII characters
+      # (e.g. the Chinese path D:/.../LLM-Wiki). Writing with -Encoding ascii
+      # replaced them with '?', so the wrapper exported a broken LLM_WIKI_VAULT
+      # and every task ran against a non-existent directory.
+      # chcp 65001 makes cmd.exe read the file body as UTF-8.
+      $body = @($lines[0], 'chcp 65001 >nul') + @($lines | Select-Object -Skip 1)
+      [IO.File]::WriteAllText($path, (($body -join "`r`n") + "`r`n"), (New-Object Text.UTF8Encoding $false))
       return $path
     }
     $envPrefix = 'set LLM_WIKI_VAULT=' + $Vault + '&& set LLM_WIKI_REPORTS=' + $Reports + '&& '

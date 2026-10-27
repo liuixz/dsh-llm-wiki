@@ -17,7 +17,14 @@ const rawDir=path.join(VAULT,"raw/sessions/dsh"); const raws=fs.existsSync(rawDi
 const allText=pages.map(p=>p.text).join("\n");
 let compiled=0; for(const f of raws){ const short=(f.match(/([0-9a-f]{8})\.md$/)||[])[1]||""; if((short&&allText.includes(short))||allText.includes(f)) compiled++; }
 const stale=pages.filter(p=>{ if(/status:\s*archived/.test(p.text.slice(0,1500))) return false; const m=p.text.slice(0,1500).match(/^updated:\s*(\S+)/m)||p.text.slice(0,1500).match(/^created:\s*(\S+)/m); if(!m) return false; return (Date.now()-new Date(m[1]).getTime())/864e5>90; }).length;
-const logTxt=read(path.join(VAULT,"log.md")); const mlog=[...logTxt.matchAll(/lint:(\d+)问题/g)]; const lintIssues=mlog.length?Number(mlog[0][1]):-1;
+// lint 问题数只看「最新一条」pipeline 日志。
+// 旧实现用 matchAll 取全文第一个 lint:N 命中：条目按新→旧排列时恰好是最新一条，
+// 但只要最新那次运行不带 lint 段（例如只跑 --sync），就会把上一次的陈旧数字
+// 当成今天的状态。这里显式取最新条目，取不到就报 -1（未知），不冒充旧值。
+const logTxt=read(path.join(VAULT,"log.md"));
+const newestEntry=(logTxt.split(/\r?\n/).find(l=>/^##\s*\[/.test(l))||"");
+const mlog=newestEntry.match(/lint:(\d+)问题/);
+const lintIssues=mlog?Number(mlog[1]):-1;
 let syncPages=0, syncChunks=0; try{ const st=JSON.parse(read(STATE)); for(const k of Object.keys(st)) if(k.startsWith("wiki")){ syncPages++; syncChunks+=(st[k].chunks||[]).length; } }catch{}
 const userMd=read(USERMD); const userEntries=(userMd.match(/\n§\n/g)||[]).length+(userMd.trim()?1:0); const userBytes=Buffer.byteLength(userMd,"utf8");
 const REPORTS = (process.env.LLM_WIKI_REPORTS || ((process.env.USERPROFILE || "") + "/.dsh/llm-wiki/reports"));

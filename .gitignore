@@ -8,3 +8,6 @@ node_modules/
 # 鏈満閰嶇疆
 .env
 /.vs
+
+# 临时提交信息文件
+.commit-msg.txt

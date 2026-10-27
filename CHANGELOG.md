@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.11.1 — 2026-10-27
+
+本轮源于「开启自动任务后跑起来才发现」的几处损坏：计划任务真的触发后，管线在外置编辑器（Obsidian 开了 `update-time-on-edit`）与自身写日志的共同作用下把 `log.md` 和页面 frontmatter 写坏，健康快照又拿陈旧数字冒充当天状态。
+
+### 管线：`log.md` 结构损坏
+
+- `appendLog` 原实现把新条目插到字节 0，于是条目堆在 frontmatter 之上；Obsidian 每次回写又补一层 `---created/updated---`，两边叠加把日志写成 18 个 frontmatter 块、标题沉到第 93 行。
+- 新增 `normalizeLog(text)`：合并全部 frontmatter 块（`updated` 取最大值）、剥掉重复标题、正文保持新→旧；`appendLog` 改为输出固定形状 `frontmatter → 空行 → "# LLM-Wiki 操作日志" → 空行 → 新条目 → 旧条目`，写入点显式落在标题之下。
+- frontmatter 只认「`---` + 纯 `key: value` 行 + `---` 收尾」的块，避免把正文里的横线误当分隔符。
+- 实测：连续两次写日志 `lines=33 sep=2 headingAt=6`，再跑 `--all` 仍为 `sep=2 headingAt=6`，结构稳定。
+
+### 管线：frontmatter YAML 损坏
+
+- `setFmField` 原实现只替换首行：字段原本是块式写法时会残留孤儿的缩进续行，产出 `generated: { by: ..., at: ... }` 后面再跟两行 `  by:` / `  at:` 的非法 YAML，`description` 等字段也曾被同样方式截断。改为按行定位并吃掉全部缩进续行。
+- 新增 `isoAt(v)` 统一时间格式，修掉 `2026-10-27T19:52` + `T00:00:00Z` 拼出来的双 T（`2026-10-27T19:52T00:00:00Z`）。
+- 新增幂等清扫 `normalizeFmArtifacts(content)`：在 `--okf` 末尾修掉历史遗留的双 T 与游离映射子行。
+
+### 管线：`--okf` 不再假更新
+
+- `parseFm` 原实现只匹配单行 `key: value`，块式的 `generated:` / `verified:` 一律读成空串，导致 `if (!fm.generated)` 恒真、每次 `--okf` 都全量重写。重写为「值为空时把缩进子行折成与内联同形状的对象」。
+- 实测：首次 `{"aligned":17,"updated":17}`（清掉 17 页历史伤痕），第二次 `{"aligned":0,"updated":0}`，幂等成立。
+
+### 健康快照：`lintIssues` 不再取陈旧值
+
+- 原实现用 `matchAll` 取全文第一个 `lint:N问题` 命中。条目按新→旧排列时它恰好是最新一条，但只要最新那次运行不带 lint 段（例如只跑 `--sync`），就会把上一次的旧数字当成今天的状态。改为显式只看最新一条 `## [` 条目，取不到写 `-1`（未知）。
+- 实测：最新条目为 `## [2026-10-27] pipeline | sync:0条` 时 CSV 写 `-1`；跑完 `--all` 回到 `0`。
+
+### 安装脚本：计划任务包装 `.cmd` 编码
+
+- `install.ps1` 生成 `~/.dsh/bin/*.cmd` 时用 `-Encoding ascii`，中文 vault 路径被写成 `?`，任务触发后用错误的 `LLM_WIKI_VAULT` 跑在不存在目录上。改为 UTF-8 无 BOM + CRLF（`[IO.File]::WriteAllText` + `UTF8Encoding($false)`），并在 `@echo off` 之后插入 `chcp 65001 >nul` 让 cmd.exe 按 UTF-8 读文件体。
+- 实测机上的五个包装脚本均为无 BOM，`set LLM_WIKI_VAULT=D:/学习/AI知识库/LLM-Wiki` 中文完整。
+
 ## 0.11.0 — 2026-10-26
 
 ### 安装方式：改为本地仓库 link（破坏性变更）

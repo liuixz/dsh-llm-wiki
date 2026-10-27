@@ -91,11 +91,55 @@ function normalizeSourcesField(content) {
 }
 
 // frontmatter 字段设置（有则替换，无则追加；支持 frontmatter 不在文件开头）
+// 替换时必须把该字段的块式续行（缩进子行）一并吃掉：
+// 旧实现只 replace 首个 `field:` 行，于是 `generated:` 的 `by:` / `at:` 仍留在文件里，
+// 变成内联值后面的孤儿行，YAML 直接坏掉。
 function setFmField(content, field, value) {
   const blk = extractFmText(content);
   if (!blk) return content;
-  const re = new RegExp("^" + field + ":.*$", "m");
-  const newFm = re.test(blk.fm) ? blk.fm.replace(re, field + ": " + value) : blk.fm + "\n" + field + ": " + value;
+  const lines = blk.fm.split("\n");
+  const re = new RegExp("^" + field + ":");
+  const entry = field + ": " + value;
+  const idx = lines.findIndex((l) => re.test(l));
+  if (idx === -1) lines.push(entry);
+  else {
+    let end = idx + 1;
+    while (end < lines.length && /^[ \t]+\S/.test(lines[end])) end++;
+    lines.splice(idx, end - idx, entry);
+  }
+  return content.slice(0, blk.start + 3) + lines.join("\n") + "\n---" + content.slice(blk.end + 4);
+}
+
+// 统一成 <date>T<hh:mm:ss>Z。created/updated 可能是纯日期，也可能是带时分的
+// 2026-10-27T19:52（Obsidian 的 update-time-on-edit 就这么写）——旧代码一律
+// 再拼一次 "T00:00:00Z"，于是出现 `2026-10-27T19:52T00:00:00Z` 这种双 T 脏值。
+function isoAt(v) {
+  const s = String(v || "").trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!m) return null;
+  return m[1] + "T" + (m[2] || "00") + ":" + (m[3] || "00") + ":" + (m[4] || "00") + "Z";
+}
+
+/**
+ * 清理历史 bug 在 frontmatter 上留下的伤痕（幂等）：
+ * 1) 双 T 脏值 `at: 2026-10-27T19:52T00:00:00Z` → `at: 2026-10-27T00:00:00Z`
+ * 2) 内联 `{ ... }` 映射字段后面残留的缩进子行（旧 setFmField 的遗留）
+ */
+function normalizeFmArtifacts(content) {
+  const blk = extractFmText(content);
+  if (!blk) return content;
+  const lines = blk.fm.split("\n").map((l) => l.replace(/(T\d{2}:\d{2})T00:00:00Z/g, "T00:00:00Z"));
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    out.push(lines[i]);
+    if (!/^[\w_]+:\s*\{.*\}\s*$/.test(lines[i])) continue;
+    // 内联映射本不该有子行，紧跟其后的缩进映射行属于旧版遗留，丢弃
+    let j = i + 1;
+    while (j < lines.length && /^[ \t]+[\w_]+:\s*\S*/.test(lines[j])) j++;
+    i = j - 1;
+  }
+  const newFm = out.join("\n");
+  if (newFm === blk.fm) return content;
   return content.slice(0, blk.start + 3) + newFm + "\n---" + content.slice(blk.end + 4);
 }
 
@@ -220,15 +264,15 @@ function okfAlign(pages) {
     }
     // sources：OKF v0.2 要求条目是对象（resource 必填）；把历史字符串数组规范化为对象数组
     content = normalizeSourcesField(content);
-    // generated：补 by/at（at 用 created/updated 日期近似 ISO）
+    // generated：补 by/at（at 取 created/updated，统一规范成 ISO）
     if (!fm.generated) {
-      const at = (fm.updated || fm.created || today) + "T00:00:00Z";
-      content = setFmField(content, "generated", "{ by: agent/dsh-llm-wiki, at: " + at + " }");
+      const at = isoAt(fm.updated || fm.created || today);
+      if (at) content = setFmField(content, "generated", "{ by: agent/dsh-llm-wiki, at: " + at + " }");
     }
     // verified：quality_score >= 4 且无 verified 时，自动标记 agent verified
     if (!fm.verified && Number(fm.quality_score) >= 4) {
-      const at = (fm.updated || fm.created || today) + "T00:00:00Z";
-      content = setFmField(content, "verified", "{ by: agent/dsh-llm-wiki, at: " + at + " }");
+      const at = isoAt(fm.updated || fm.created || today);
+      if (at) content = setFmField(content, "verified", "{ by: agent/dsh-llm-wiki, at: " + at + " }");
     }
     // stale_after：created/updated + 90 天
     if (!fm.stale_after) {
@@ -238,6 +282,8 @@ function okfAlign(pages) {
         content = setFmField(content, "stale_after", d.toISOString().slice(0, 10) + "T00:00:00Z");
       }
     }
+    // 清掉历史 bug 留下的双 T 脏值 / 内联映射后的孤儿续行
+    content = normalizeFmArtifacts(content);
     if (content !== p.content) {
       // 恢复原 mtime：--okf 是元数据规范化（记忆体条目用 summary 不含 description），不触发 sync 重新导入
       const origMtime = p.mtime;
@@ -650,13 +696,39 @@ function pruneMemory() {
   } finally { try { db.close(); } catch {} }
 }
 
+/**
+ * 解析 frontmatter 顶层字段。
+ * 必须能认块式写法：Obsidian 会把值重新序列化成
+ *   generated:
+ *     by: agent/dsh-llm-wiki
+ *     at: 2026-10-27T00:00:00Z
+ * 旧实现只看单行 `key: value`，于是块式字段读成空串，--okf 判定"缺字段"、
+ * 每次都重写一遍（实测每次 19 页全是假更新）。
+ */
 function parseFm(content) {
   const fm = {};
   const blk = extractFmText(content);
   if (!blk) return fm;
-  for (const line of blk.fm.split("\n")) {
-    const kv = line.match(/^([\w_]+):\s*(.*)$/);
-    if (kv) fm[kv[1]] = kv[2].replace(/^["']|["']$/g, "");
+  const lines = blk.fm.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const kv = lines[i].match(/^([\w_]+):\s*(.*)$/);
+    if (!kv) continue;
+    const key = kv[1];
+    const raw = kv[2].trim();
+    if (raw) {
+      fm[key] = raw.replace(/^["']|["']$/g, "");
+      continue;
+    }
+    // 块式：把缩进子行折成 { k: v } 形式，与内联写法保持同一形状供下游判空/取用
+    const sub = [];
+    let j = i + 1;
+    while (j < lines.length && /^[ \t]+\S/.test(lines[j])) {
+      const m = lines[j].match(/^\s+(?:-\s+)?([\w_]+):\s*(.*)$/);
+      if (m) sub.push(m[1] + ": " + m[2].trim());
+      j++;
+    }
+    if (sub.length) { fm[key] = "{ " + sub.join(", ") + " }"; i = j - 1; }
+    else fm[key] = "";
   }
   return fm;
 }
@@ -1147,12 +1219,79 @@ async function syncMemory(pages) {
   return result;
 }
 
+const LOG_HEADING = "# LLM-Wiki 操作日志";
+
+/**
+ * 规整 log.md 结构（幂等，写日志前调用）。
+ *
+ * 历史缺陷：appendLog 用 writeFileSync(line + 旧内容) 把新条目插到文件最顶端，
+ * 而 Obsidian 的 update-time-on-edit 插件又会给被改动的文件补 ---created/updated---。
+ * 两者叠加的结果是 log.md 里堆出 N 个 frontmatter 块、标题被挤到文件中部
+ * （实测 95 行里有 18 个块、标题落在第 93 行）。
+ *
+ * 返回 { fm, body }：fm 为合并后的 frontmatter（取值取最大，即 updated 最新），
+ * body 为剥掉所有 frontmatter 块与重复标题后的条目行，保持原有新→旧顺序。
+ */
+function normalizeLog(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  const fm = {};
+  const body = [];
+  const isSep = (s) => s.trim() === "---";
+  const isKv = (s) => /^[\w_]+:\s*.*$/.test(s.trim());
+  let i = 0;
+  while (i < lines.length) {
+    // 只把「--- 紧跟纯 key: value 行、再以 --- 收尾」认作 frontmatter，
+    // 避免误吞正文里用来分隔的横线。
+    if (isSep(lines[i]) && i + 1 < lines.length && isKv(lines[i + 1])) {
+      let j = i + 1;
+      while (j < lines.length && !isSep(lines[j]) && isKv(lines[j])) j++;
+      if (j < lines.length && isSep(lines[j])) {
+        for (let k = i + 1; k < j; k++) {
+          const kv = lines[k].match(/^([\w_]+):\s*(.*)$/);
+          if (!kv) continue;
+          const key = kv[1];
+          const val = kv[2].trim();
+          if (!(key in fm) || String(val) > String(fm[key])) fm[key] = val;
+        }
+        i = j + 1;
+        continue;
+      }
+    }
+    if (lines[i].trim() === LOG_HEADING) { i++; continue; }
+    body.push(lines[i]);
+    i++;
+  }
+  while (body.length && !body[0].trim()) body.shift();
+  while (body.length && !body[body.length - 1].trim()) body.pop();
+  // 历史文件里被反复插入/剥离后常留下连续空行：折叠成单个空行，
+  // 并保证每条 `## [` 条目之前都有一个空行，日志才可读。
+  const tidy = [];
+  for (const raw of body) {
+    if (!raw.trim()) {
+      if (tidy.length && tidy[tidy.length - 1] !== "") tidy.push("");
+      continue;
+    }
+    if (/^##\s*\[/.test(raw) && tidy.length && tidy[tidy.length - 1] !== "") tidy.push("");
+    tidy.push(raw);
+  }
+  while (tidy.length && tidy[tidy.length - 1] === "") tidy.pop();
+  return { fm, body: tidy };
+}
+
 function appendLog(entry) {
   const logPath = join(VAULT, "log.md");
   try {
-    const line = "## [" + new Date().toISOString().slice(0, 10) + "] pipeline | " + entry + "\n";
-    if (existsSync(logPath)) writeFileSync(logPath, line + readFileSync(logPath, "utf8"));
-    else writeFileSync(logPath, "# LLM-Wiki 操作日志\n\n" + line);
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const stamp = today + "T" + now.toISOString().slice(11, 16);
+    const line = "## [" + today + "] pipeline | " + entry;
+    const prev = existsSync(logPath) ? readFileSync(logPath, "utf8") : "";
+    const { fm, body } = normalizeLog(prev);
+    // 条目永远落在标题之下，绝不插到 frontmatter 之上；frontmatter 恒定只有一份，
+    // 新条目与旧正文之间留一个空行，避免两条 `## [` 紧贴。
+    const out = ["---", "created: " + (fm.created || stamp), "updated: " + stamp, "---", "", LOG_HEADING, "", line];
+    if (body.length) out.push("", ...body);
+    writeFileSync(logPath, out.join("\n") + "\n");
   } catch {}
 }
 
