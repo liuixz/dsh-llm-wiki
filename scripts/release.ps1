@@ -42,6 +42,15 @@ if ($DryRun) { Write-Host 'DRYRUN OK'; Write-Host ('notes: ' + $notes.Substring(
 git add -A
 git -c user.name=dsh -c user.email=dsh@local commit -m ('release: v' + $Version) --no-verify | Out-Null
 git tag -f ('v' + $Version) | Out-Null
+# 仓库 slug 从 origin 推导，避免 fork 时把 Release 打到上游仓库
+$originUrl = (git remote get-url origin 2>$null)
+if (-not $originUrl) { throw 'no git remote origin' }
+$slug = $null
+if ($originUrl -match 'github\.com[:/]+(?<owner>[^/]+)/(?<repo>[^/\s]+?)(?:\.git)?/?$') {
+  $slug = $Matches['owner'] + '/' + $Matches['repo']
+}
+if (-not $slug) { throw ('cannot derive owner/repo from origin: ' + $originUrl) }
+Write-Host ('==> release target ' + $slug)
 $gp = @()
 if ($Proxy) { $gp = @('-c', ('http.proxy=' + $Proxy), '-c', ('https.proxy=' + $Proxy)) }
 git @gp push origin main
@@ -52,7 +61,7 @@ if (-not $tok) { throw 'no GitHub token from git credential' }
 $h = @{ 'User-Agent' = 'dsh-agent'; 'Authorization' = 'Bearer ' + $tok; 'Accept' = 'application/vnd.github+json' }
 $payload = @{ tag_name = ('v' + $Version); name = ('v' + $Version); body = $notes; draft = $false; prerelease = $false } | ConvertTo-Json -Depth 4
 $bodyBytes = [Text.Encoding]::UTF8.GetBytes($payload)
-$rel = Invoke-RestMethod -Method Post -Uri 'https://api.github.com/repos/iwtown/dsh-llm-wiki/releases' -Headers $h -ContentType 'application/json; charset=utf-8' -Body $bodyBytes -TimeoutSec 40
-$latest = Invoke-RestMethod -Uri 'https://api.github.com/repos/iwtown/dsh-llm-wiki/releases/latest' -Headers $h -TimeoutSec 30
+$rel = Invoke-RestMethod -Method Post -Uri ('https://api.github.com/repos/' + $slug + '/releases') -Headers $h -ContentType 'application/json; charset=utf-8' -Body $bodyBytes -TimeoutSec 40
+$latest = Invoke-RestMethod -Uri ('https://api.github.com/repos/' + $slug + '/releases/latest') -Headers $h -TimeoutSec 30
 if ($latest.tag_name -ne ('v' + $Version)) { throw ('latest release mismatch: ' + $latest.tag_name) }
 Write-Host ('released ' + $Version + ' -> ' + $rel.html_url)

@@ -226,7 +226,7 @@ dsh-llm-wiki/
 
 ## 版本
 
-- `0.11.1`：自动任务实跑暴露的四处损坏修复。`log.md` 不再被新条目顶出多层 frontmatter（`normalizeLog` 固定写「frontmatter → 标题 → 新到旧条目」）；页面 frontmatter 不再因 `setFmField` 只换首行而残留孤儿 `by:`/`at:` 行，也不再拼出双 T（新增 `isoAt` 与幂等清扫 `normalizeFmArtifacts`）；`parseFm` 认得块式写法，`--okf` 第二次起 `updated: 0`，不再假更新；健康快照的 `lintIssues` 只看最新一条日志，无 lint 段时写 `-1` 而非沿用旧值；`install.ps1` 生成计划任务包装 `.cmd` 改 UTF-8 无 BOM + `chcp 65001`，中文 vault 路径不再变成 `?`。
+- `0.11.1`：自动任务实跑暴露的四处损坏修复。`log.md` 不再被新条目顶出多层 frontmatter（`normalizeLog` 固定写「frontmatter → 标题 → 新到旧条目」）；页面 frontmatter 不再因 `setFmField` 只换首行而残留孤儿 `by:`/`at:` 行，也不再拼出双 T（新增 `isoAt` 与幂等清扫 `normalizeFmArtifacts`）；`parseFm` 认得块式写法，`--okf` 第二次起 `updated: 0`，不再假更新；健康快照的 `lintIssues` 只看最新一条日志，无 lint 段时写 `-1` 而非沿用旧值；`install.ps1` 生成计划任务包装 `.cmd` 改 UTF-8 无 BOM + `chcp 65001`，中文 vault 路径不再变成 `?`；`scripts/release.ps1` 的 Release 目标仓库改为从 `origin` 推导，fork 上发版不再打到上游。
 - `0.11.0`：安装方式改为**本地仓库 link**（`link:` 依赖 + bundle patch，不再向 profile 拷贝插件）；插件优先使用包内 `scripts/`，改仓库代码重启即生效；vault 默认路径跨平台收敛（Windows `D:\学习\AI知识库\LLM-Wiki`，Linux `/mnt/d/学习/AI知识库/LLM-Wiki`）；`LLM_WIKI_REPORTS` 默认改为 `~/.dsh/llm-wiki/reports`；安装脚本幂等（重复运行不重复写 patch，改 vault 只改一行）并自动清理旧版手工 insert 块。
 - `0.10.7`：预算淘汰建议（只读提案，受保护规则除外）。
 - `0.10.6`：schema 关键词补充（候选方案对比）。

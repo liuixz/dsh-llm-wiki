@@ -32,6 +32,11 @@
 - `install.ps1` 生成 `~/.dsh/bin/*.cmd` 时用 `-Encoding ascii`，中文 vault 路径被写成 `?`，任务触发后用错误的 `LLM_WIKI_VAULT` 跑在不存在目录上。改为 UTF-8 无 BOM + CRLF（`[IO.File]::WriteAllText` + `UTF8Encoding($false)`），并在 `@echo off` 之后插入 `chcp 65001 >nul` 让 cmd.exe 按 UTF-8 读文件体。
 - 实测机上的五个包装脚本均为无 BOM，`set LLM_WIKI_VAULT=D:/学习/AI知识库/LLM-Wiki` 中文完整。
 
+### 发布脚本：Release 目标仓库从 origin 推导
+
+- `scripts/release.ps1` 原先把 `api.github.com/repos/iwtown/dsh-llm-wiki` 写死，在 fork 上执行会把 Release 打到上游仓库（自己有 push 权时甚至真的建成功）。改为从 `git remote get-url origin` 解析 `owner/repo`，解析失败直接报错退出。
+- 顺带在推送前打印 `==> release target <slug>`，让发版人一眼确认目标仓库。
+
 ## 0.11.0 — 2026-10-26
 
 ### 安装方式：改为本地仓库 link（破坏性变更）
