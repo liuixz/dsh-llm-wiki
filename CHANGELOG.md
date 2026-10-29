@@ -9,6 +9,7 @@
 - 根因：`git push` / `git tag` 的进度本来就走 stderr，而 Windows PowerShell 5.1 在 `$ErrorActionPreference='Stop'` 下把原生 stderr 当成终止性错误收进 ErrorRecord。于是 push 成功、Release 也建好了，脚本仍以非零码收场。
 - 改法：`Invoke-Native` 改用 `System.Diagnostics.Process` 分别重定向 stdout / stderr / stdin，异步读取两条流规避缓冲区互等，只看 `ExitCode` 判成败；stderr 不再经过 PowerShell 的错误流。新增 `Invoke-NativeChecked` 统一「非零即抛」。
 - 附带修掉两个只在 Windows 上出现的坑：① 旧实现把命令写进临时 `.cmd` 交给 `cmd /c`，`%` 会被当变量展开（`100% done` → `100 left`）；② 旧实现对含引号的参数直接抛错。新的 `ConvertTo-CommandLineArg` 按 Windows 命令行规则转义，`%`、内嵌双引号、CJK、尾部反斜杠均可原样传递。
+- 幂等：重复执行同一版本时，`git commit` 在没有可提交内容时会以 1 退出——先用 `git diff --cached` 判断暂存区，空则跳过提交并复用 HEAD；同一 tag 的 Release 已存在时改走 `PATCH` 更新正文，不再被 422 打断。
 - 脚本本身改为 **UTF-8 with BOM**：PowerShell 5.1 读无 BOM 的 `.ps1` 会按 ANSI 解码，中文注释把字节吃掉后解析器错位，报「表达式或语句中包含意外的标记」。
 
 ### 验证
@@ -16,6 +17,7 @@
 - 13 项包装函数回归：stderr 与 exit 0 并存、非零码仍被识别、UTF-8 输出、stdin 透传、`%`、内嵌引号、CJK 参数、尾部反斜杠、`Invoke-NativeChecked` 抛异常。
 - 端到端夹具：临时裸仓库上跑 add / commit（中文信息）/ tag / push，`push` 成功信息走 stderr 且 `ExitCode=0`，远端确实收到 `refs/heads/main` 与 `refs/tags/v9.9.9`；对不存在的分支 push 仍按 exit 1 抛错。
 - `-DryRun` 全流程通过：版本一致性、`node --check`、`install.ps1` 语法、密钥/路径泄漏扫描、画像评测 13/13、检索评测 6/6。
+- 幂等回归 4 例：干净树重复执行只跳过提交并成功打 tag；有改动时正常提交一次；发版提交后重跑仍跳过、提交数不增；文件内容变化仍被识别为需提交。
 
 ## 0.11.1 — 2026-10-27
 

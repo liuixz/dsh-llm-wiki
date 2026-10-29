@@ -108,7 +108,14 @@ if (-not $m.Success) { throw ('CHANGELOG missing section for ' + $Version) }
 $notes = $m.Groups[1].Value.Trim()
 if ($DryRun) { Write-Host 'DRYRUN OK'; Write-Host ('notes: ' + $notes.Substring(0, [Math]::Min(80, $notes.Length))); exit 0 }
 Invoke-NativeChecked -Exe git -Arguments @('add', '-A') -What 'git add' | Out-Null
-Invoke-NativeChecked -Exe git -Arguments @('-c', 'user.name=dsh', '-c', 'user.email=dsh@local', 'commit', '-m', ('release: v' + $Version), '--no-verify') -What 'git commit' | Out-Null
+# 重跑时常见「版本号已经提交过」：git commit 在这种情况下以 1 退出，但那不是失败。
+# 注意 add 之后工作区已经干净，要看的是暂存区有没有内容（git diff --cached）。
+$staged = ((Invoke-Native -Exe git -Arguments @('diff', '--cached', '--name-only')).Lines | Where-Object { $_.Trim() })
+if ($staged) {
+  Invoke-NativeChecked -Exe git -Arguments @('-c', 'user.name=dsh', '-c', 'user.email=dsh@local', 'commit', '-m', ('release: v' + $Version), '--no-verify') -What 'git commit' | Out-Null
+} else {
+  Write-Host '==> nothing to commit, reusing HEAD'
+}
 Invoke-NativeChecked -Exe git -Arguments @('tag', '-f', ('v' + $Version)) -What 'git tag' | Out-Null
 # 仓库 slug 从 origin 推导，避免 fork 时把 Release 打到上游仓库
 $originRun = Invoke-Native -Exe git -Arguments @('remote', 'get-url', 'origin')
@@ -136,7 +143,19 @@ if (-not $tok) { throw 'no GitHub token from git credential' }
 $h = @{ 'User-Agent' = 'dsh-agent'; 'Authorization' = 'Bearer ' + $tok; 'Accept' = 'application/vnd.github+json' }
 $payload = @{ tag_name = ('v' + $Version); name = ('v' + $Version); body = $notes; draft = $false; prerelease = $false } | ConvertTo-Json -Depth 4
 $bodyBytes = [Text.Encoding]::UTF8.GetBytes($payload)
-$rel = Invoke-RestMethod -Method Post -Uri ('https://api.github.com/repos/' + $slug + '/releases') -Headers $h -ContentType 'application/json; charset=utf-8' -Body $bodyBytes -TimeoutSec 40
+# 同一个 tag 重跑时 Release 可能已存在，POST 会返回 422；先查已有条目，存在就更新正文。
+$existing = $null
+try {
+  $existing = Invoke-RestMethod -Uri ('https://api.github.com/repos/' + $slug + '/releases/tags/' + ('v' + $Version)) -Headers $h -TimeoutSec 30
+} catch {
+  $existing = $null
+}
+if ($existing) {
+  Write-Host ('==> release ' + $existing.tag_name + ' already exists, updating notes')
+  $rel = Invoke-RestMethod -Method Patch -Uri $existing.url -Headers $h -ContentType 'application/json; charset=utf-8' -Body $bodyBytes -TimeoutSec 40
+} else {
+  $rel = Invoke-RestMethod -Method Post -Uri ('https://api.github.com/repos/' + $slug + '/releases') -Headers $h -ContentType 'application/json; charset=utf-8' -Body $bodyBytes -TimeoutSec 40
+}
 $latest = Invoke-RestMethod -Uri ('https://api.github.com/repos/' + $slug + '/releases/latest') -Headers $h -TimeoutSec 30
 if ($latest.tag_name -ne ('v' + $Version)) { throw ('latest release mismatch: ' + $latest.tag_name) }
 Write-Host ('released ' + $Version + ' -> ' + $rel.html_url)
