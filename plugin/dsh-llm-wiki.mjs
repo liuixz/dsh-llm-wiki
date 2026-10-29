@@ -8,6 +8,7 @@
  * 功能：
  *  1. systemPrompt 注入：schema.md 守则 + 知识预览（index.md，管线产物）
  *  2. session/disposed → 异步触发 P2 管线（防重入 + 冷却）
+ *  3. 管理面板 Host 半边：/llm-wiki-panel/*（降级页 + /api/*），客户端半边在 lib/client.js
  *
  * 配置（cordis.patch.yml config）:
  *  vault:        vault 路径（默认按平台：Windows D:\学习\AI知识库\LLM-Wiki，其他 /mnt/d/学习/AI知识库/LLM-Wiki）
@@ -27,6 +28,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { spawn } from "node:child_process";
+import { registerPanelRoutes, PREFIX as PANEL_PREFIX } from "./panel/server.mjs";
+import { detectProfile } from "./panel/config.mjs";
 
 export const name = "dsh-llm-wiki";
 export const inject = ["systemPrompt"];
@@ -109,6 +112,36 @@ export function apply(ctx, config = {}) {
       return "\n---\n# LLM-Wiki 知识库运行规则\n\n" + schema + "\n---\n";
     },
   }), "dsh-llm-wiki.prompt.rules");
+
+  // ── 1.5) 管理面板的 Host 半边（降级页 + /api/*） ──
+  // 客户端插件（lib/client.js）在 slot 里渲染同一个 web/panel.js；这里只负责数据与写入。
+  // webServer 是可选的：宿主没提供（例如非 web 平台）就整块跳过，不影响提示词注入。
+  ctx.effect(() => {
+    let disposer = null;
+    let server = null;
+    try {
+      server = ctx.get ? ctx.get("webServer") : ctx.webServer;
+    } catch { server = null; }
+    if (!server || typeof server.register !== "function") {
+      try { console.log("[dsh-llm-wiki] panel skipped: webServer service unavailable"); } catch {}
+      return () => {};
+    }
+    try {
+      disposer = registerPanelRoutes({
+        webServer: server,
+        vault: () => vault,
+        profile: () => detectProfile(PLUGIN_DIR),
+        log: (m) => { try { console.log(m); } catch {} },
+      });
+      try { console.log("[dsh-llm-wiki] panel routes registered at " + PANEL_PREFIX); } catch {}
+    } catch (e) {
+      try { console.log("[dsh-llm-wiki] panel routes failed: " + (e && e.message ? e.message : e)); } catch {}
+      disposer = null;
+    }
+    return () => {
+      try { if (typeof disposer === "function") disposer(); } catch {}
+    };
+  }, "dsh-llm-wiki.panel.routes");
 
   // ── 2) session/disposed → 触发管线 ──
   let lastRun = 0;

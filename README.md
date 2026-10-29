@@ -46,6 +46,9 @@
 | 写入技能 | `skills/wiki-write/SKILL.md` | `%USERPROFILE%\.agents\skills\wiki-write\`（由安装脚本拷贝） |
 | 检索技能 | `skills/wiki-search/SKILL.md` | `%USERPROFILE%\.agents\skills\wiki-search\`（由安装脚本拷贝） |
 | 管线 | `scripts/llm-wiki-pipeline.mjs` | 包内，插件从 `import.meta.url` 解析 |
+| 管线互斥锁 | `scripts/pipeline-lock.mjs` | 同上（管线、计划任务、面板共用） |
+| 管理面板（Host） | `plugin/panel/*.mjs` | 挂在插件上，经 `ctx.webServer` 暴露 `/llm-wiki-panel` |
+| 管理面板（Client） | `lib/client.js` + `web/panel.*` | 由 `dsh.client` 声明，DSH 自动服务，无需拷贝 |
 | 融合检索 | `scripts/wiki-retrieval.mjs` | 同上 |
 | 查询路由 | `scripts/wiki-router.mjs` | 同上 |
 | 画像抽取 | `scripts/profile-extract.mjs` | 同上 |
@@ -108,6 +111,29 @@ dsh plugin --profile desktop add github:iwtown/dsh-llm-wiki
 | LLM-Wiki Stale Review | 周日 09:40 | stale Top20 复核清单 |
 | LLM-Wiki Weekly Summary | 周日 09:50 | 周报（任务结果/健康变化/待办清单） |
 | Mnemon Backup | 每日 10:30 | mnemon 快照（独立组件，不由本仓库安装） |
+
+## 管理面板
+
+安装（link 模式）后重启 dsh，面板有两个入口：
+
+- **设置页 → LLM-Wiki 分区**（`settings.section` 座位）
+- **右栏 → LLM-Wiki 标签**（`sidebar.right.pane.tab` 座位）。右栏标签只在有会话时出现，hero 屏（无会话首页）右侧是空的，这是 DSH 右栏的既有行为。
+
+两个入口渲染同一份界面（`web/panel.js`），不写两遍。降级路径：座位挂不上时，仍可用浏览器直接打开 `http://127.0.0.1:<webServer 端口>/llm-wiki-panel/?tab=tasks`（`?tab=config|tasks|history` 可直达某张表）。
+
+| 区域 | 能做什么 |
+|---|---|
+| 配置项 | 看各层配置的生效值与漂移；改 `vault` / `previewOrder` / `rulesOrder` / `mainAgentOnly`（只写 profile 的 `cordis.patch.yml`，写完提示重启） |
+| 计划任务 | 看五个任务的启用状态 / 上次结果 / 下次运行；启用、停用、改触发时刻（非 Windows 只读展示） |
+| 运行历史 | `log.md` 条目 + `reports/health/health-YYYY-MM.csv` 趋势（每行带与上一行的 Δ 环比） |
+
+顶部一个搜索框过滤三张表；五个运行按钮跑管线；运行中 1s 轮询输出，跑完自动停。
+
+**并发**：管线自己持锁（`scripts/pipeline-lock.mjs`，锁文件 `~/.dsh/llm-wiki/.pipeline.lock`），面板只做预检。已有任务在跑时按钮变成「排队」与「强制解锁」，排队的那条会在前一条结束后自动拉起（`drainQueue`）。计划任务与面板共用同一把锁，所以两者不会撞车。
+
+> 面板是**可选组件**：不想用就把 `package.json` 里的 `dsh.client` 与 `exports["./client"]` 去掉、删掉 `lib/` 与 `web/`，插件其余功能不受影响。
+
+设计取舍见 `docs/adr/0001-panel-as-client-plugin.md`；写入哪一层见 `0002-config-write-target.md`；锁的语义见 `0003-pipeline-mutex.md`；术语见 `GLOSSARY.md`。
 
 ## 管线命令
 
@@ -208,8 +234,13 @@ node <仓库>/scripts/profile-distill.mjs --since 30d    # 复核 → 候选 →
 ```
 dsh-llm-wiki/
 ├─ plugin/dsh-llm-wiki.mjs        # 注入 + 生命周期 + 编译提示
+├─ plugin/panel/                  # 管理面板的 Host 半边（配置/任务/历史/管线/路由）
+├─ lib/client.js                  # 管理面板的 Client 半边（两个座位）
+├─ web/panel.{html,js,css}        # 两端共用的界面
+├─ locale/{zh,en}.json            # 面板的标语
 ├─ scripts/
 │  ├─ llm-wiki-pipeline.mjs       # 维护管线
+│  ├─ pipeline-lock.mjs           # 全局互斥锁（管线/计划任务/面板共用）
 │  ├─ wiki-retrieval.mjs          # 融合检索
 │  ├─ wiki-router.mjs             # 五路分流
 │  ├─ profile-extract.mjs         # 会话 → 证据
@@ -219,6 +250,7 @@ dsh-llm-wiki/
 │  ├─ pipeline-health.mjs
 │  └─ embed-proxy.mjs
 ├─ skills/wiki-write · skills/wiki-search
+├─ docs/adr/  GLOSSARY.md         # 设计决策与项目词汇
 ├─ systemd/  install.sh  install.ps1
 ├─ package.json（bundle 只含插件）
 └─ CHANGELOG.md
@@ -226,6 +258,7 @@ dsh-llm-wiki/
 
 ## 版本
 
+- `0.12.0`：新增**图形管理面板**——`settings.section` 与 `sidebar.right.pane.tab` 两个座位，三张表（配置项 / 计划任务 / 运行历史）共用一份 `web/panel.js`，五个按钮一键跑管线，顶部一个搜索框；降级路径是 `ctx.webServer` 上的 `/llm-wiki-panel` 页面。配置只写 profile 的 `cordis.patch.yml` 并提示重启；新增 `scripts/pipeline-lock.mjs` 全局互斥锁（管线内部持锁，计划任务与面板共用，抢不到 exit 75，支持 `--queue` 排队与面板「强制解锁」）；面板只做锁预检而不自己抢锁，避免父子进程互锁。决策记入 `docs/adr/0001~0003`，术语记入 `GLOSSARY.md`。
 - `0.11.2`：发版脚本不再假失败。`scripts/release.ps1` 的 `Invoke-Native` 改用 `System.Diagnostics.Process` 分开重定向 stdout/stderr/stdin，只看退出码判成败——修复 `git push` 成功却因 stderr 被 PowerShell 当成终止性错误而以 exit 1 收场；顺带修掉旧实现用临时 `.cmd` 导致 `%` 被展开、含引号参数直接抛错两个 Windows 专属坑（新的 `ConvertTo-CommandLineArg` 按 Windows 规则转义）；脚本本身改为 UTF-8 with BOM，避免 PowerShell 5.1 按 ANSI 读取中文注释后解析错位。另外补了幂等：同一版本重跑时没有可提交内容则跳过提交、Release 已存在则更新正文，不再因「nothing to commit」或 422 报失败。
 - `0.11.1`：自动任务实跑暴露的四处损坏修复。`log.md` 不再被新条目顶出多层 frontmatter（`normalizeLog` 固定写「frontmatter → 标题 → 新到旧条目」）；页面 frontmatter 不再因 `setFmField` 只换首行而残留孤儿 `by:`/`at:` 行，也不再拼出双 T（新增 `isoAt` 与幂等清扫 `normalizeFmArtifacts`）；`parseFm` 认得块式写法，`--okf` 第二次起 `updated: 0`，不再假更新；健康快照的 `lintIssues` 只看最新一条日志，无 lint 段时写 `-1` 而非沿用旧值；`install.ps1` 生成计划任务包装 `.cmd` 改 UTF-8 无 BOM + `chcp 65001`，中文 vault 路径不再变成 `?`；`scripts/release.ps1` 的 Release 目标仓库改为从 `origin` 推导，fork 上发版不再打到上游。
 - `0.11.0`：安装方式改为**本地仓库 link**（`link:` 依赖 + bundle patch，不再向 profile 拷贝插件）；插件优先使用包内 `scripts/`，改仓库代码重启即生效；vault 默认路径跨平台收敛（Windows `D:\学习\AI知识库\LLM-Wiki`，Linux `/mnt/d/学习/AI知识库/LLM-Wiki`）；`LLM_WIKI_REPORTS` 默认改为 `~/.dsh/llm-wiki/reports`；安装脚本幂等（重复运行不重复写 patch，改 vault 只改一行）并自动清理旧版手工 insert 块。

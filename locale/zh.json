@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "LLM-Wiki",
+    "description": "管理 LLM-Wiki 的配置项、计划任务与运行历史，并可一键运行管线。"
+  }
+}

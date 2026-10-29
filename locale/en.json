@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "LLM-Wiki",
+    "description": "Manage the LLM-Wiki config keys, scheduled tasks and run history, and run the pipeline with one click."
+  }
+}

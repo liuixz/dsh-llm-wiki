@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LLM-Wiki 管理</title>
+  <link rel="stylesheet" href="/llm-wiki-panel/panel.css">
+</head>
+<body>
+  <div id="root"></div>
+  <noscript>需要启用 JavaScript。</noscript>
+  <script src="/llm-wiki-panel/panel.js"></script>
+  <script>
+    (function () {
+      var root = document.getElementById("root");
+      var lang = (navigator.language || "zh").toLowerCase();
+      var api = window.__LLMWikiPanel;
+      if (!api) {
+        root.textContent = "panel.js 加载失败";
+        return;
+      }
+      try {
+        api.mount(root, { base: "/llm-wiki-panel", locale: lang, compact: false });
+      } catch (e) {
+        root.textContent = "面板初始化失败: " + (e && e.message ? e.message : e);
+      }
+    })();
+  </script>
+</body>
+</html>

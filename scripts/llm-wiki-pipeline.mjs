@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSy
 import { join, relative } from "node:path";
 import { zstdDecompressSync } from "node:zlib";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { execFileSync, execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
@@ -22,6 +23,7 @@ process.stderr.on("error", () => {});
 process.stdout.on("error", () => {});
 process.stderr.on("error", () => {});
 import { createServer } from "node:http";
+import { acquire, release, enqueue, drainQueue, readLock, describeLock, LOCK_FILE } from "./pipeline-lock.mjs";
 
 const VAULT = process.env.LLM_WIKI_VAULT || (process.platform === "win32" ? "D:\\学习\\AI知识库\\LLM-Wiki" : "/mnt/d/学习/AI知识库/LLM-Wiki");
 const WIKI = join(VAULT, "wiki");
@@ -41,6 +43,10 @@ const DO_RECONCILE = args.has("--reconcile") && RECONCILE_TARGET;
 const RATE_TARGET = rawArgs[rawArgs.indexOf("--rate") + 1];
 const RATE_VALUE = rawArgs[rawArgs.indexOf("--rating") + 1];
 const DO_RATE = args.has("--rate") && RATE_TARGET && RATE_VALUE;
+// --queue：不抢锁，把这次请求排到队尾，等当前那次跑完后由持锁者拉起
+const DO_QUEUE = args.has("--queue");
+// --no-lock：只读/调试用（例如 --dry-run --lint），不参与互斥
+const NO_LOCK = args.has("--no-lock");
 
 // frontmatter 定位（支持前置杂行）：返回第一个"行首"--- 块（防值内 --- 如 URL 误判）
 function extractFmText(content) {
@@ -1295,7 +1301,7 @@ function appendLog(entry) {
   } catch {}
 }
 
-async function main() {
+async function body() {
   console.log("LLM-Wiki pipeline | vault:", VAULT);
   if (DO_RATE) {
     const r = ratePage(RATE_TARGET, RATE_VALUE);
@@ -1384,4 +1390,60 @@ async function main() {
   if (!DRY) appendLog(summary.join(" | "));
   console.log("\n完成。");
 }
+/**
+ * 互斥入口：
+ *  - 抢不到锁 → 打印持锁者信息，exit 75（EX_TEMPFAIL，表示"稍后再试"而不是失败）
+ *  - 正常跑完 → 释放锁，然后从队列里拉起下一条
+ *  --queue 不抢锁，直接入队
+ *  --no-lock 不参与互斥（只读/调试）
+ *  --dry-run 也参与互斥（它会写日志之外的东西？不会，但会与 --all 抢同一批文件读，保持简单：同样抢锁）
+ */
+async function main() {
+  const cmdText = rawArgs.length ? rawArgs.join(" ") : "--all";
+
+  if (NO_LOCK) {
+    await body();
+    return;
+  }
+
+  if (DO_QUEUE) {
+    const queuedArgs = rawArgs.filter(a => a !== "--queue");
+    const len = enqueue(queuedArgs.join(" ") || "--all", { args: queuedArgs, by: process.env.LLM_WIKI_QUEUED_BY || "cli" });
+    console.log("已排队（第 " + len + " 位）: " + (queuedArgs.join(" ") || "--all"));
+    return;
+  }
+
+  const got = acquire(cmdText);
+  if (!got.ok) {
+    const h = got.holder;
+    if (h) {
+      console.error("管线正在运行，本次放弃：");
+      console.error("  pid=" + h.pid + (h.host ? " host=" + h.host : ""));
+      console.error("  command=" + h.command);
+      console.error("  已运行 " + describeLock(h));
+      console.error("  如确认该进程已死，删除锁文件后重试：" + LOCK_FILE);
+    } else {
+      console.error("无法获取管线锁（" + (got.error ? got.error.message : "占用未知") + "）");
+    }
+    process.exitCode = 75;
+    return;
+  }
+
+  // 无论成功失败都要释放锁并把队列里排着的下一条拉起来
+  let failed = false;
+  try {
+    await body();
+  } catch (e) {
+    failed = true;
+    throw e;
+  } finally {
+    release();
+    try {
+      const started = drainQueue(fileURLToPath(import.meta.url), { vault: VAULT });
+      if (started) console.log("\n已从队列启动下一条管线任务。");
+    } catch {}
+  }
+  if (failed) process.exitCode = 1;
+}
+
 main().catch(e => { console.error("pipeline 失败:", e); process.exit(1); });

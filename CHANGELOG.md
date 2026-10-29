@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.12.0 — 2026-10-29
+
+新增**图形管理面板**：在 DSH 里直接打开，看配置项 / 计划任务 / 运行历史，一键跑管线，改完提示重启。
+
+### 面板本体
+
+- 新增客户端半边 `lib/client.js`：`window.__ModuleLoader__.load()` 注册两个座位——`settings.section`（设置页「LLM-Wiki」分区）与 `sidebar.right.pane.tab`（右栏标签，配合 `ctx.sidebarRightTabs.register` 的类型声明）。不引入任何构建步骤，手写 bundle 即可。
+- 新增两端共用的界面 `web/panel.js`（+ `web/panel.html` / `web/panel.css`）：`window.__LLMWikiPanel.mount(root, {base, locale, compact})`。slot 组件与降级页用的是同一份代码，不写两遍。所有文本走 `textContent`，不拼 HTML；深浅色随 `prefers-color-scheme`。
+- 新增 Host 半边 `plugin/panel/server.mjs`：`ctx.webServer.register({ kind: "prefix", path: "/llm-wiki-panel" })` 提供降级页、静态资源与 `/api/*`。不用 Typert RPC——那需要 `@Remote` 装饰器 + 代码生成，与「零依赖零构建」冲突。
+- 座位组件包了 error boundary 且 render 里再 try/catch：slot 组件抛错会把整块座位打白（设置页会整页白屏），这是生态里踩过的坑。
+
+### 三张表
+
+- **配置项**：只改插件 config 四项（`vault` / `previewOrder` / `rulesOrder` / `mainAgentOnly`），管线调优参数只读。带类型校验（两个 order 必须整数、`vault` 不能为空），写入前留 `.bak-panel-<时间戳>` 兜底。
+- **计划任务**：只读状态 + 启用/停用 + 改触发时刻（`Enable-/Disable-ScheduledTask`、`New-ScheduledTaskTrigger` + `Register-ScheduledTask -Force`，保留原 `DaysOfWeek` / Actions / Settings / Description）。非 Windows 一律只读展示，不报错。
+- **运行历史**：解析 `log.md` 条目，同时读 `~/.dsh/llm-wiki/reports/health/health-YYYY-MM.csv` 做趋势——每行带 `pages` / `compiled` / `stale` / `lintIssues` / `syncPages` / `probeHit` 及与上一行的 Δ 环比。
+- 顶部共用搜索框过滤三张表；五个运行按钮（全量 `--all` / 检查 `--lint` / 重建索引 `--index` / 同步记忆 `--sync` / 体检 `pipeline-health`）；有活锁时多出「排队」与「强制解锁」。
+
+### 配置写入只认一处
+
+- 只写 profile 的 `cordis.patch.yml`（真源），`$DSH_HOME/cordis.patch.yml` 等其它层只展示「漂移」但不动。`.cmd` 里残留的旧 vault 路径属漂移，不是 bug。写完提示「需重启 DSH 生效」。
+- 决策与代价记在 `docs/adr/0001-panel-as-client-plugin.md`、`0002-config-write-target.md`；项目词汇记在 `GLOSSARY.md`。
+
+### 管线互斥锁（`scripts/pipeline-lock.mjs`，新增）
+
+- 后台进程 + 全局锁 `~/.dsh/llm-wiki/.pipeline.lock`（pid / 命令 / 开始时间），`writeFileSync(..., {flag:"wx"})` 独占创建，EEXIST 时重读判陈旧后重试一次。
+- **锁逻辑放进 `llm-wiki-pipeline.mjs` 内部**，计划任务与面板共用同一把锁：`main()` 改名 `body()`，新 `main()` 负责抢锁、排队（`--queue`）或直接放行（`--no-lock`）；抢不到打印持锁者信息并以 `75`（EX_TEMPFAIL）退出；成功则 `finally` 释放并 `drainQueue()` 拉起排队中的下一条。
+- 陈旧锁靠 `process.kill(pid, 0)` 存活检查清理（`EPERM` 也算活）。
+- **面板不自己抢锁**，只做「有活锁就 409」的预检——否则父进程持锁会让子进程必然拿到 EEXIST 而以 75 退出。体检脚本（`pipeline-health.mjs`）不自己加锁，由面板代管。
+
+### 验证
+
+- 端口层 11 项：`GET /`、`/panel.js`、`/panel.css`、`/api/state`、五个 runCommand、四个 configKey、未知键 400、未知任务 400、未知路由 404、坏 JSON 500。
+- 隔离 `DSH_HOME` + 临时 profile patch 14 项：改 vault 只动一行、新增键落在 config 块内、`mainAgentOnly: false`、非整数 order 报错、空 vault 报错、重复写同值不产生第二行、占锁时 `/api/run` 409 且 reason 含 pid 与时长、占锁时排队 position=1、真跑 `--lint` exit=0 且跑完锁已释放、`/api/unlock` 200。
+- 客户端 7 项：bundle id、`inject`、两个座位的注册形状、`slots.inject` 包裹、组件能渲染不抛。
+- 渲染 15 项：用极简假 DOM 跑 `mount()`，三张表都能渲染，搜索框可过滤，`destroy()` 清空容器。
+- 真实浏览器：Chrome 打开降级页，标题/状态胶囊/五个运行按钮/三张表/漂移表全部正确渲染。
+
 ## 0.11.2 — 2026-10-29
 
 发版脚本收尾：`scripts/release.ps1` 不再把成功报成失败，也不再受中文编码与 `cmd` 元字符影响。
