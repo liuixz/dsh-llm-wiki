@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.12.3 — 2026-10-30
+
+**修掉第二个真 bug**：设置页第一次打开正常，关掉再开就变空白。
+
+### 修复：卸载时清掉了「模块已加载」状态，第二次打开卡在永不触发的 load
+
+`lib/client.js` 的 `PanelHost` 在 `useEffect` cleanup 里做了三件事：销毁实例、`scriptPromise = null`、`delete window.__LLMWikiPanel`。但插入的 `<script data-llm-wiki-panel="1">` **节点留在 `document.head` 里**。于是第二次打开时：
+
+1. `:28 window.__LLMWikiPanel` —— 已被删，跳过；
+2. `:29 scriptPromise` —— 已置 null，跳过；
+3. `:31 existing` —— 找到上次那个 `<script>`，走 existing 分支；
+4. `:33 existing.addEventListener("load", ...)` —— **但 load 早已发生，浏览器不会补发**。
+
+Promise 永不 settle → `api.mount()` 永不执行 → 容器里空无一物。
+
+改法两处：
+
+- cleanup 只销毁本次实例，**不再清 `scriptPromise` 与 `window.__LLMWikiPanel`** —— 它们是「模块已加载」的状态，与单个面板实例的生命周期无关。
+- `loadPanelScript()` 的 load 回调给节点打 `dataset.llmWikiLoaded = "1"`；existing 分支见到该标记就直接 resolve，不再挂监听。
+
+顺带修好两个相关缺陷：
+
+- 加载失败时把 `scriptPromise` 复位（`scriptPromise.catch(() => { scriptPromise = null; })`），否则一个 rejected promise 会永久缓存错误、重试永远失败；
+- 加载失败时移除那个死 `<script>` 节点，否则后续 existing 分支会拿到一个永不 load 的节点。
+
+### 验证
+
+用临时探针（Node + vm + 极简假 DOM，模拟真实浏览器「已 load 的 script 不会补发 load」语义）验证，18 项断言全过，跑完即删：首次打开 mount、关掉再开仍 mount、反复开关 3 次每次都 mount、`<script>` 始终只有 1 个、设置页与右栏两实例可同时挂载、加载失败后能重试成功。
+
 ## 0.12.2 — 2026-10-30
 
 **修掉一个真 bug**：桌面版启动时管理面板根本没注册上，设置页与右栏都空白。
