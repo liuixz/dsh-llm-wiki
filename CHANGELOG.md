@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.13.2 — 2026-10-31
+
+**修掉「改计划任务时间必报错」以及它背后的两个隐患。**
+
+### 现象
+
+在面板里点计划任务行的「改」，填新时刻后保存，弹出乱码提示并且时间没变：
+
+```
+�޷��Բ�����Description��ִ�в�����֤������Ϊ Null ��ա����ṩһ����Ϊ Null ��յĲ�����Ȼ�����Ը����
+```
+
+还原成正常中文是：**「无法对参数"Description"执行参数验证。参数为 Null 或空。请提供一个不为 Null 或空的参数，然后重试该操作。」**
+
+### 根因 1：任务本来就没有 Description
+
+五个任务是 `install.ps1` 用 `schtasks /Create` 建的（`install.ps1:310-318`），这条命令不接受描述，所以任务的 `Description` 一直是 `$null`。实测五个全是 NULL：
+
+```
+LLM-Wiki Pipeline :: Description=NULL
+Profile Distill   :: Description=NULL
+（其余三个同）
+```
+
+而 `setTaskTime()` 走的是 `Register-ScheduledTask ... -Description $t.Description`，该参数声明了 `[ValidateNotNullOrEmpty]`，把 `$null` 传进去就是参数绑定阶段直接失败，连任务都没碰到。
+
+改法：`$desc=$t.Description; if([string]::IsNullOrWhiteSpace($desc)){ $desc='<MANAGED_TASKS 里的 desc>' }`，顺带把原本空白的描述补成有意义的中文（「每日全量管线 + 健康快照」等）。
+
+### 根因 2：星期会随每次修改往后漂
+
+`$t.Triggers[0].DaysOfWeek` 在 CIM 里是 **UInt16 位掩码**（周日=1、周一=2、周二=4 … 周六=64），不是「星期几的序号」。原代码把这个数字直接喂给 `New-ScheduledTaskTrigger -DaysOfWeek`，PS 会把它当枚举值，于是每次保存都往后挪一天。实测连改两次：`Mask=1 → Mask=2 → Mask=4`（周日 → 周一 → 周二），而任务本身是「每周日」。
+
+改法：先把掩码按位展开成枚举名数组再传：
+
+```powershell
+$map=@(@{bit=1;name='Sunday'},@{bit=2;name='Monday'},...,@{bit=64;name='Saturday'})
+$mask=0; foreach($g in $t.Triggers){ $mask=$mask -bor [int]$g.DaysOfWeek }
+$days=@(); foreach($m in $map){ if($mask -band $m.bit){ $days+=$m.name } }
+$nt=New-ScheduledTaskTrigger -Weekly -At $time -DaysOfWeek $days
+```
+
+位掩码 → 枚举名 → 新掩码的 round-trip 实测 `1→1`、`3→3`、`127→127`、`0→1`（空掩码兜底成周日）。
+
+### 根因 3：中文报错变成乱码
+
+`runPowerShell()` 把 `powershell.exe` 的输出按 `utf8` 解码，但 PS 5.1 默认按系统代码页（简体中文是 936/GBK）写管道，于是中文报错全变成 `�`。这既让原错误不可读，也让人无法判断到底哪里错。修法是在 `-EncodedCommand` 前缀里显式设 `[Console]::OutputEncoding` 与 `$OutputEncoding` 为 UTF-8。
+
+顺带补上 `-Principal $t.Principal`：原代码没传，重注册时任务的登录身份会退回默认值；实测加上后 `UserId`/`LogonType`/`RunLevel` 三者都保持原样。
+
+### 验证
+
+真机跑 `setTaskTime()`（不是模拟）：daily 任务 `10:00→10:03`、weekly 任务 `09:00→09:08`、再 `09:08→09:11` 确认星期掩码始终为 `1`（周日）不再漂移；非法时间 `25:99` 被拒（`时间格式必须是 HH:mm`）；改完再停用/启用，`State` 正确；全部还原后五个任务 `State=Ready`、时间与 `DaysOfWeek` 与改前完全一致。中文报错也已可读：`ERR 找不到任何"TaskName"属性等于"NoSuchTaskXyz"的 MSFT_ScheduledTask 对象。请验证属性值，然后重试。`
+
+### 遗留
+
+`install.ps1` 用 `schtasks /Create` 建任务，仍不会写描述。本次是在面板侧兜底（首次改时间时补上），没有改安装脚本——`/TR` 引号与 `/F` 覆盖语义在 `schtasks` 上更稳，换成 `Register-ScheduledTask` 需要另测 Principal 与 Settings 的等价性。
+
 ## 0.13.1 — 2026-10-31
 
 **修掉「点了回填向量，覆盖率几乎没动」的缺陷。**

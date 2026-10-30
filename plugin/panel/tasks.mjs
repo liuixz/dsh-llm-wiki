@@ -26,7 +26,13 @@ export const IS_WINDOWS = process.platform === "win32";
 
 function runPowerShell(script) {
   return new Promise((resolve, reject) => {
-    const encoded = Buffer.from("$ProgressPreference='SilentlyContinue'\n" + script, "utf16le").toString("base64");
+    // [Console]::OutputEncoding 必须显式设成 UTF-8：powershell.exe 默认按系统代码页（简体中文是 936/GBK）
+    // 管道输出，而我们按 utf8 解码，中文报错就会变成「锟斤拷」式乱码，看不出到底哪里错。
+    const prefix =
+      "$ProgressPreference='SilentlyContinue'\n" +
+      "[Console]::OutputEncoding=[Text.Encoding]::UTF8\n" +
+      "$OutputEncoding=[Text.Encoding]::UTF8\n";
+    const encoded = Buffer.from(prefix + script, "utf16le").toString("base64");
     execFile(
       "powershell",
       ["-NoProfile", "-NonInteractive", "-OutputFormat", "Text", "-EncodedCommand", encoded],
@@ -156,15 +162,23 @@ export async function setTaskTime(name, hhmm) {
     "  $kind=''",
     "  foreach($g in $t.Triggers){ if($g.CimClass.CimClassName -match 'Daily'){$kind='daily'} elseif($g.CimClass.CimClassName -match 'Weekly'){$kind='weekly'} }",
     "  if($kind -eq ''){ throw '任务的触发器类型不受支持（既非每日也非每周）' }",
-    "  $time=" + psStr(String(hhmm)) ,
+    "  $time=" + psStr(String(hhmm)),
     "  if($kind -eq 'daily'){",
     "    $nt=New-ScheduledTaskTrigger -Daily -At $time",
     "  } else {",
-    "    $days=$t.Triggers[0].DaysOfWeek; if($null -eq $days -or $days.Count -eq 0){ $days=1 }",
+    // DaysOfWeek 是 UInt16 位掩码（周日=1 周一=2 … 周六=64），不是枚举下标。
+    // 直接把这个数字交给 -DaysOfWeek 会被当成星期几的序号，写回去天数就整体错位。
+    "    $map=@(@{bit=1;name='Sunday'},@{bit=2;name='Monday'},@{bit=4;name='Tuesday'},@{bit=8;name='Wednesday'},@{bit=16;name='Thursday'},@{bit=32;name='Friday'},@{bit=64;name='Saturday'})",
+    "    $mask=0; foreach($g in $t.Triggers){ $mask=$mask -bor [int]$g.DaysOfWeek }",
+    "    $days=@(); foreach($m in $map){ if($mask -band $m.bit){ $days+=$m.name } }",
+    "    if($days.Count -eq 0){ $days=@('Sunday') }",
     "    $nt=New-ScheduledTaskTrigger -Weekly -At $time -DaysOfWeek $days",
     "  }",
     "  $settings=$t.Settings",
-    "  Register-ScheduledTask -TaskName " + psStr(def.name) + " -Trigger $nt -Action $t.Actions -Settings $settings -Description $t.Description -Force | Out-Null",
+    // schtasks /Create 建出来的任务 Description 是 NULL，而 -Description 带 ValidateNotNullOrEmpty，
+    // 传 $null 会抛「无法对参数 Description 执行参数验证。参数为 Null 或空」。这里给回退值。
+    "  $desc=$t.Description; if([string]::IsNullOrWhiteSpace($desc)){ $desc=" + psStr(def.desc) + " }",
+    "  Register-ScheduledTask -TaskName " + psStr(def.name) + " -Trigger $nt -Action $t.Actions -Settings $settings -Principal $t.Principal -Description $desc -Force | Out-Null",
     "  'OK'",
     "}catch{ 'ERR ' + $_.Exception.Message }",
   ].filter(Boolean).join("\n");
