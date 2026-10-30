@@ -3,7 +3,7 @@
  *
  * 用在哪两处：
  *  1. 降级页  GET /llm-wiki-panel/          → <script src="/llm-wiki-panel/panel.js"> 后调用 mount()
- *  2. DSH 插件 slot（settings.section / sidebar.right.pane.tab）
+ *  2. DSH 插件 slot（settings.section）
  *     → client.js 动态插入同一个 <script src>，再调用 window.__LLMWikiPanel.mount(el, opts)
  *
  * 只通过 fetch 访问 <base>/api/*，自身不持有任何状态真源。
@@ -15,7 +15,7 @@
   /* ==========================================================================
    * 样式：内建在 panel.js 里，首次 mount() 注入 <style data-llm-wiki="1">。
    *
-   * 为什么不放 panel.css + <link>：slot 模式（设置页 / 右栏）由 client.js 动态插
+   * 为什么不放 panel.css + <link>：slot 模式（设置页）由 client.js 动态插
    * <script> 加载本文件，从不加载 panel.html，所以 <link> 里的样式在 DSH 里根本
    * 不会生效 —— 面板会以浏览器默认样式渲染。内建一份、两处共用，才只有一处真源。
    *
@@ -196,6 +196,12 @@
 .lw-h{font-size:12px;font-weight:600;color:var(--lw-fg-3);}
 .lw-warn{color:var(--lw-warn);}
 .lw-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;}
+/* 表格可能比卡片宽（任务表列多）。卡片是 overflow:hidden 的，
+   不给外层滚动容器就会被裁掉且无法查看，所以这里接管横向滚动。 */
+.lw-table-wrap{width:100%;overflow-x:auto;overscroll-behavior-x:contain;}
+.lw-table-wrap::-webkit-scrollbar{height:8px;}
+.lw-table-wrap::-webkit-scrollbar-thumb{background:var(--lw-border);border-radius:4px;}
+.lw-table-wrap::-webkit-scrollbar-thumb:hover{background:var(--lw-fg-4);}
 .lw-table th,.lw-table td{
   text-align:left;padding:9px 14px;border-bottom:1px solid var(--lw-border);
   vertical-align:middle;word-break:break-word;
@@ -268,7 +274,7 @@
   white-space:pre-wrap;word-break:break-all;tab-size:2;
 }
 
-/* ---- 紧凑模式（右栏标签）：表格退化为键值列表 ---- */
+/* ---- 紧凑模式（窄容器）：表格退化为键值列表 ---- */
 .llmwiki-panel.is-compact{padding:12px;gap:10px;}
 .llmwiki-panel.is-compact .lw-sub{display:none;}
 .llmwiki-panel.is-compact .lw-title{font-size:14px;}
@@ -296,6 +302,8 @@
 }
 .llmwiki-panel.is-compact .lw-table td[data-label=""]::before{content:none;}
 .llmwiki-panel.is-compact .lw-table td[data-label=""]{grid-template-columns:minmax(0,1fr);}
+/* 紧凑模式每行折叠成「标签 : 值」，不再需要横向滚动 */
+.llmwiki-panel.is-compact .lw-table-wrap{overflow-x:visible;}
 .llmwiki-panel.is-compact .lw-pre{max-height:180px;}
 
 /* ---- 动效偏好 ---- */
@@ -787,14 +795,16 @@
         tbody.appendChild(r);
       });
       t.appendChild(tbody);
+      // 包一层横向滚动容器：卡片是 overflow:hidden 的，表格超宽时会被直接裁掉，
+      // 且浏览器不会给 <table> 自己滚动条，所以必须由外层接管。
+      var scroller = el("div", "lw-table-wrap");
+      scroller.appendChild(t);
       if (rows.length === 0) {
         var empty = el("div", "lw-empty", d.noData);
-        var box = el("div");
-        box.appendChild(t);
-        box.appendChild(empty);
-        return box;
+        scroller.appendChild(empty);
+        return scroller;
       }
-      return t;
+      return scroller;
     }
 
     /** 卡片：标题 + 右侧提示 + 内容区 */

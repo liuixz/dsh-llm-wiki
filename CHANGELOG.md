@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.12.4 — 2026-10-30
+
+**只保留设置页入口，并修掉两处界面缺陷。**
+
+### 修复 1：设置页左侧导航里没有分区名称
+
+`lib/client.js` 注册 `settings.section` 时只给了 `name` / `id` / `order` / `inject`，**没给 `label`**。设置页左侧导航靠 `label` 渲染分区名称，缺了就只剩内容、没有名字（现象是分区可点、正文正常，唯独名称位空白）。
+
+```js
+{
+  name: "settings.section",
+  id: "llm-wiki",
+  order: 65,
+  label: () => "LLM-Wiki",   // ← 补这一行
+  inject: () => ({ locale: activeLocale() }),
+}
+```
+
+用函数形式（而非字符串）与生态写法一致，宿主可以延迟求值。
+
+### 修复 2：计划任务表右侧列被裁掉，且无法滚动
+
+`.lw-card` 是 `overflow:hidden`（为了圆角裁切），而 `.lw-table` 用 `table-layout:auto`、宽度 `100%`，**没有外层滚动容器**。任务表列多（名称 / 描述 / 调度 / 时刻 / 状态 / 上次结果 / 下次运行 / 操作），撑不开就整块超出卡片、被直接裁掉；浏览器也不会给 `<table>` 自己出滚动条。
+
+改法：`table()` 产出后包一层滚动容器。
+
+```js
+var scroller = el("div", "lw-table-wrap");
+scroller.appendChild(t);
+```
+
+```css
+.lw-table-wrap{width:100%;overflow-x:auto;overscroll-behavior-x:contain;}
+.lw-table-wrap::-webkit-scrollbar{height:8px;}
+.lw-table-wrap::-webkit-scrollbar-thumb{background:var(--lw-border);border-radius:4px;}
+/* 紧凑模式每行折叠成「标签 : 值」，不需要横向滚动 */
+.llmwiki-panel.is-compact .lw-table-wrap{overflow-x:visible;}
+```
+
+空表时的 `lw-empty` 提示也放进同一个容器，避免出现「空表在卡片里、提示在滚动区外」的两层结构。
+
+### 变更：移除右栏标签，只保留设置页
+
+删除 `lib/client.js` 里的 `SidebarPane`、`TAB_ID`、`ctx.sidebarRightTabs.register(...)` 与 `sidebar.right.pane.tab` 座位注册；`factory.inject` 从 `["slots","sidebarRightTabs","locale"]` 收敛为 `["slots","locale"]`；`package.json` 的 `dsh.client.inject` 去掉 `@deepseek-ai/dsh-client-ui-sidebar-right`。
+
+右栏标签本来只在有会话时出现（hero 屏右侧为空），加上两个入口共用同一套 Host 路由，维护成本大于收益。降级页 `/llm-wiki-panel/` 保留，仍是座位失效时的兜底。
+
+### 验证
+
+临时探针（Node + vm + 极简假 DOM，跑完即删）21 项全过：
+
+- 客户端半边：bundle id、`factory.inject` 不再含 `sidebarRightTabs`、**只注册一个座位**、座位是 `settings.section`、`label` 是函数、`label()` 返回 `"LLM-Wiki"`、没有注册 `sidebar.right.pane.tab`、没有调用 `ctx.sidebarRightTabs.register`、源码无 `TAB_ID`/`SidebarPane` 残留。
+- 界面：`mount()` 返回 `destroy`，DOM 里存在 `.lw-table-wrap` 且每个容器直接含 `<table>`，**没有 `<table>` 直接挂在 `.lw-card-body` 下**。
+- CSS：`.lw-table-wrap` 有 `overflow-x:auto`；紧凑模式下改为 `overflow-x:visible`。
+- `package.json`：不再注入 `dsh-client-ui-sidebar-right`，仍注入 `slots` 与 `settings`。
+
+顺带记一处探针教训：`web/panel.js` 的 `request()` 读的是 `r.text()` 而不是 `r.json()`，stub 写错会让整个界面停在骨架态（`.lw-empty`），断言表现为「表格容器不存在」而不是报错。
+
 ## 0.12.3 — 2026-10-30
 
 **修掉第二个真 bug**：设置页第一次打开正常，关掉再开就变空白。
@@ -27,11 +85,11 @@ Promise 永不 settle → `api.mount()` 永不执行 → 容器里空无一物�
 
 ### 验证
 
-用临时探针（Node + vm + 极简假 DOM，模拟真实浏览器「已 load 的 script 不会补发 load」语义）验证，18 项断言全过，跑完即删：首次打开 mount、关掉再开仍 mount、反复开关 3 次每次都 mount、`<script>` 始终只有 1 个、设置页与右栏两实例可同时挂载、加载失败后能重试成功。
+用临时探针（Node + vm + 极简假 DOM，模拟真实浏览器「已 load 的 script 不会补发 load」语义）验证，18 项断言全过，跑完即删：首次打开 mount、关掉再开仍 mount、反复开关 3 次每次都 mount、`<script>` 始终只有 1 个、两个实例可同时挂载、加载失败后能重试成功。
 
 ## 0.12.2 — 2026-10-30
 
-**修掉一个真 bug**：桌面版启动时管理面板根本没注册上，设置页与右栏都空白。
+**修掉一个真 bug**：桌面版启动时管理面板根本没注册上，设置页空白。
 
 ### 修复：webServer 在 apply() 时还没挂载，面板路由永不注册
 
@@ -62,7 +120,7 @@ Promise 永不 settle → `api.mount()` 永不执行 → 容器里空无一物�
 
 ### 修复：slot 模式下界面是无样式渲染
 
-`web/panel.css` 只被降级页 `web/panel.html` 的 `<link>` 引用；而设置页 / 右栏走 `lib/client.js` 动态插 `<script src="/llm-wiki-panel/panel.js">`，`panel.js` 自身不注入样式。结果是**在 DSH 里看到的其实是浏览器默认样式**，只有单独打开降级页才好看。
+`web/panel.css` 只被降级页 `web/panel.html` 的 `<link>` 引用；而设置页走 `lib/client.js` 动态插 `<script src="/llm-wiki-panel/panel.js">`，`panel.js` 自身不注入样式。结果是**在 DSH 里看到的其实是浏览器默认样式**，只有单独打开降级页才好看。
 
 - 样式改为内建进 `web/panel.js`（`var STYLE` + `ensureStyle()`，首次 `mount()` 时插一个 `<style data-llm-wiki="1">`，已存在则跳过，失败静默不影响功能）。两个入口自动一致，不会再出现「一处有一处没有」。
 - 删除 `web/panel.css`，`web/panel.html` 去掉 `<link>`。`/panel.css` 路由保留但返回空注释，避免旧引用 404。
@@ -75,7 +133,7 @@ Promise 永不 settle → `api.mount()` 永不执行 → 容器里空无一物�
 - **标签页改成分段控件**：圆角容器 + `is-active` 白底阴影，取代下划线。
 - **状态胶囊改圆点 + 文字**：状态点 7px，运行中呼吸动画，三态 运行中 / 有锁 / 空闲。
 - **趋势条重做**：6px 圆角条 + 进度，Δ 用等宽字体并按正负着色。
-- **紧凑模式（右栏窄宽度）表格降级为竖向键值卡**：`table/tbody/tr/td` 块化、`thead` 隐藏、`td::before { content: attr(data-label) }` 显示字段名。为此 `table()` 给每个 `td` 写了 `data-label`。
+- **紧凑模式（窄宽度）表格降级为竖向键值卡**：`table/tbody/tr/td` 块化、`thead` 隐藏、`td::before { content: attr(data-label) }` 显示字段名。为此 `table()` 给每个 `td` 写了 `data-label`。
 - 字号 / 间距 / 圆角统一：面板 13px、行高 1.55，标题 15px/650，表头 11.5px/600，卡片内距 10–14px，圆角由 `--radius` 派生三档。
 - 无障碍：`:focus-visible` 描边、`aria-hidden` 图标、`prefers-reduced-motion` 关动画、`::selection` 配色。
 
@@ -97,7 +155,7 @@ Promise 永不 settle → `api.mount()` 永不执行 → 容器里空无一物�
 
 ### 面板本体
 
-- 新增客户端半边 `lib/client.js`：`window.__ModuleLoader__.load()` 注册两个座位——`settings.section`（设置页「LLM-Wiki」分区）与 `sidebar.right.pane.tab`（右栏标签，配合 `ctx.sidebarRightTabs.register` 的类型声明）。不引入任何构建步骤，手写 bundle 即可。
+- 新增客户端半边 `lib/client.js`：`window.__ModuleLoader__.load()` 注册 `settings.section`（设置页「LLM-Wiki」分区；当时另带一个 `sidebar.right.pane.tab` 座位，0.12.4 已移除）。不引入任何构建步骤，手写 bundle 即可。
 - 新增两端共用的界面 `web/panel.js`（+ `web/panel.html`）：`window.__LLMWikiPanel.mount(root, {base, locale, compact})`。slot 组件与降级页用的是同一份代码，不写两遍。所有文本走 `textContent`，不拼 HTML；深浅色随 `prefers-color-scheme`。
 - 新增 Host 半边 `plugin/panel/server.mjs`：`ctx.webServer.register({ kind: "prefix", path: "/llm-wiki-panel" })` 提供降级页、静态资源与 `/api/*`。不用 Typert RPC——那需要 `@Remote` 装饰器 + 代码生成，与「零依赖零构建」冲突。
 - 座位组件包了 error boundary 且 render 里再 try/catch：slot 组件抛错会把整块座位打白（设置页会整页白屏），这是生态里踩过的坑。
@@ -125,7 +183,7 @@ Promise 永不 settle → `api.mount()` 永不执行 → 容器里空无一物�
 
 - 端口层 11 项：`GET /`、`/panel.js`、`/panel.css`（现返回空注释以兼容旧引用）、`/api/state`、五个 runCommand、四个 configKey、未知键 400、未知任务 400、未知路由 404、坏 JSON 500。
 - 隔离 `DSH_HOME` + 临时 profile patch 14 项：改 vault 只动一行、新增键落在 config 块内、`mainAgentOnly: false`、非整数 order 报错、空 vault 报错、重复写同值不产生第二行、占锁时 `/api/run` 409 且 reason 含 pid 与时长、占锁时排队 position=1、真跑 `--lint` exit=0 且跑完锁已释放、`/api/unlock` 200。
-- 客户端 7 项：bundle id、`inject`、两个座位的注册形状、`slots.inject` 包裹、组件能渲染不抛。
+- 客户端 7 项：bundle id、`inject`、座位注册形状、`slots.inject` 包裹、组件能渲染不抛。
 - 渲染 15 项：用极简假 DOM 跑 `mount()`，三张表都能渲染，搜索框可过滤，`destroy()` 清空容器。
 - 真实浏览器：Chrome 打开降级页，标题/状态胶囊/五个运行按钮/三张表/漂移表全部正确渲染。
 

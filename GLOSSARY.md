@@ -33,5 +33,5 @@ _Avoid_: 定时器、cron
 _Avoid_: 日志、审计
 
 **降级（Degraded Mode）**：
-面板无法注册进 DSH 界面时，改由右栏浏览器标签承载同一份页面的状态。
+面板无法注册进 DSH 界面时，改用浏览器直接打开 `/llm-wiki-panel/` 承载同一份页面的状态。
 _Avoid_: 回退、fallback
