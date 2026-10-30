@@ -476,8 +476,9 @@
       embBackfill: "回填向量",
       embBackfilling: "回填中…",
       embDone: "回填完成",
+      embRound: "第 {n} 轮",
       embHint: "配好凭据不等于有向量：历史条目需要单独回填一次",
-      embWhy: "sync 只导入新内容或改过的页面；hash 未变的历史条目不会重导，向量要单独回填。"
+      embWhy: "sync 只导入新内容或改过的页面；hash 未变的历史条目不会重导，向量要单独回填。mnemon 每轮最多处理 100 条，面板会自动接着跑下一轮。"
     },
     en: {
       title: "LLM-Wiki Admin",
@@ -572,8 +573,9 @@
       embBackfill: "Backfill vectors",
       embBackfilling: "Backfilling…",
       embDone: "Backfill finished",
+      embRound: "Round {n}",
       embHint: "A credential does not create embeddings: existing entries need one backfill",
-      embWhy: "sync only imports new or changed pages; entries whose hash is unchanged are not reimported, so their vectors need a separate backfill."
+      embWhy: "sync only imports new or changed pages; entries whose hash is unchanged are not reimported, so their vectors need a separate backfill. mnemon handles at most 100 entries per round; the panel keeps going automatically."
     }
   };
 
@@ -1280,6 +1282,13 @@
       btn.disabled = running || !e.keyConfigured;
       btn.addEventListener("click", function () { startBackfill(); });
       row.appendChild(btn);
+
+      // 回填是分轮的（mnemon embed --all 每轮上限 100 条），把轮次与进度显出来
+      if (bf && bf.round) {
+        var prog = e.embedded + " / " + e.total;
+        if (bf.embedded !== undefined && bf.total !== undefined) prog = bf.embedded + " / " + bf.total;
+        row.appendChild(el("span", "lw-chip", d.embRound.replace("{n}", String(bf.round)) + " · " + prog));
+      }
 
       if (bf && bf.exitCode === 0 && bf.finished) row.appendChild(el("span", "lw-chip is-ok", d.embDone));
       if (bf && bf.finished && bf.exitCode !== 0) row.appendChild(el("span", "lw-chip is-bad", "exit " + String(bf.exitCode)));

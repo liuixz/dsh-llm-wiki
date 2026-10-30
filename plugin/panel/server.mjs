@@ -277,8 +277,13 @@ function startRun(commandId, by) {
 }
 
 /**
- * 回填向量：后台跑 `mnemon embed --all`。
- * 与管线共用同一把锁（同一时刻只允许一个后台任务改库）。
+ * 回填向量：后台反复跑 `mnemon embed --all`，直到覆盖率不再上升。
+ *
+ * 为什么要循环：`mnemon embed --all` **单次最多处理 100 条**（实测库里有 341 条时，
+ * 每次只报 succeeded:100 / backfill_complete，exit 0）。只跑一次会让用户看到
+ * 「点了回填，覆盖率还是 30%」，误以为失败了。这里一轮一轮跑到收敛为止。
+ *
+ * 与管线共用同一把锁（同一时刻只允许一个后台任务改库）；锁只在整轮回填期间持有。
  */
 function startBackfill(by) {
   if (currentBackfill && !currentBackfill.finished) throw new Error("面板已有一次向量回填在进行中");
@@ -311,27 +316,14 @@ function startBackfill(by) {
     startedAt: Date.now(),
     finished: false,
     exitCode: null,
+    round: 0,
+    embedded: 0,
+    total: 0,
     lines: [],
     child: null,
   };
   currentBackfill = run;
 
-  let child;
-  try {
-    child = spawn(command, backfillArgs(), {
-      env: embedEnv(),
-      shell: !!shell,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (e) {
-    release();
-    run.finished = true;
-    run.exitCode = -1;
-    run.lines.push("启动失败: " + (e && e.message ? e.message : String(e)));
-    throw e;
-  }
-  run.child = child;
   const push = (chunk) => {
     const s = String(chunk);
     for (const line of s.split(/\r?\n/)) {
@@ -340,15 +332,82 @@ function startBackfill(by) {
       if (run.lines.length > 2000) run.lines.splice(0, run.lines.length - 2000);
     }
   };
-  child.stdout.on("data", push);
-  child.stderr.on("data", push);
-  child.on("error", (e) => push("进程错误: " + (e && e.message ? e.message : String(e))));
-  child.on("close", (code) => {
+
+  const finish = (code) => {
     run.finished = true;
-    run.exitCode = typeof code === "number" ? code : -1;
+    run.exitCode = code;
+    run.child = null;
     release();
     void by;
-  });
+  };
+
+  /** 跑一轮；回调里决定要不要再来一轮 */
+  const runRound = () => {
+    run.round++;
+    let child;
+    try {
+      child = spawn(command, backfillArgs(), {
+        env: embedEnv(),
+        shell: !!shell,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (e) {
+      push("启动失败: " + (e && e.message ? e.message : String(e)));
+      finish(-1);
+      return;
+    }
+    run.child = child;
+
+    let roundOut = "";
+    const onData = (chunk) => {
+      roundOut += String(chunk);
+      push(chunk);
+    };
+    child.stdout.on("data", onData);
+    child.stderr.on("data", onData);
+    child.on("error", (e) => push("进程错误: " + (e && e.message ? e.message : String(e))));
+
+    child.on("close", (code) => {
+      const exitCode = typeof code === "number" ? code : -1;
+      // 读一次状态，判断有没有进展
+      let st = null;
+      try {
+        st = readEmbedStatus();
+      } catch (e) {
+        push("读取向量化状态失败: " + (e && e.message ? e.message : String(e)));
+      }
+      const before = run.embedded;
+      if (st) {
+        run.embedded = st.embedded;
+        run.total = st.total;
+      }
+      const gained = st ? st.embedded - before : 0;
+      const done = !st || st.pct >= 100;
+
+      if (exitCode !== 0) {
+        // 单轮失败：不无限重试，直接收工
+        push("第 " + run.round + " 轮以 exit " + exitCode + " 结束，停止回填");
+        finish(exitCode);
+        return;
+      }
+      if (done) {
+        push("回填完成：" + (st ? st.embedded + " / " + st.total + "（" + st.coverage + "）" : "已全部覆盖"));
+        finish(0);
+        return;
+      }
+      if (gained <= 0) {
+        // 一轮下来一条都没新增：说明卡住了（key 失效 / 全部失败），别再空转
+        push("第 " + run.round + " 轮没有新增向量（" + (st ? st.embedded + " / " + st.total : "?") + "），停止回填");
+        finish(0);
+        return;
+      }
+      push("第 " + run.round + " 轮完成，覆盖 " + st.embedded + " / " + st.total + "（" + st.coverage + "），继续…");
+      runRound();
+    });
+  };
+
+  runRound();
   return { ok: true, backfill: { id: run.id, startedAt: run.startedAt } };
 }
 
@@ -461,6 +520,9 @@ export function registerPanelRoutes(ctx) {
                 startedAt: currentBackfill.startedAt,
                 finished: currentBackfill.finished,
                 exitCode: currentBackfill.exitCode,
+                round: currentBackfill.round,
+                embedded: currentBackfill.embedded,
+                total: currentBackfill.total,
                 output: currentBackfill.lines.slice(-200),
               }
             : null,

@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.13.1 — 2026-10-31
+
+**修掉「点了回填向量，覆盖率几乎没动」的缺陷。**
+
+### 现象
+
+配好 `SF_API_KEY` 后点「回填向量」，面板显示回填完成（`exitCode: 0`），但覆盖率只从 0% 涨到 30%（101/341），用户以为失败了。
+
+### 根因
+
+`mnemon embed --all` **单轮最多处理 100 条**。实测：
+
+```
+{"failed":0,"model":"BAAI/bge-m3","status":"backfill_complete","succeeded":100}
+```
+
+exit 0、`status: backfill_complete`、`failed: 0` —— 一切看起来都是"全部完成"，但库里一共 341 条。连跑三次才是 `101 → 201 → …`。`mnemon embed --help` 里**没有**可调这个上限的参数（只有 `--all` / `--status` / `--model` / `--readonly` / `--data-dir` / `--store`），所以只能由调用方循环。
+
+### 改法
+
+`startBackfill()` 改为一轮一轮跑到收敛，而不是跑一次就结束：
+
+- 每轮结束读一次 `readEmbedStatus()`，比对 `embedded` 是否比上一轮多；
+- 没到 100% 且有进展 → 打印 `第 N 轮完成，覆盖 X / Y（Z%），继续…` 再跑下一轮；
+- 到了 100% → `回填完成：X / Y（Z%）`；
+- **一轮零新增** → 停止，打印 `第 N 轮没有新增向量（X / Y），停止回填`（防死循环：key 失效或接口全挂时不该无限重试）；
+- 某轮非 0 退出 → 直接停，不再重试。
+
+整个过程中只持一次锁（`panel embed --all`），不是在每轮之间放手，避免被管线插队。
+
+界面同步：`/api/embed` 的 `backfill` 增加 `round` / `embedded` / `total`，回填按钮旁显示「第 N 轮 · M / T」；`embWhy` 补充说明「mnemon 每轮最多处理 100 条，面板会自动接着跑下一轮」。
+
+### 验证
+
+端到端跑真实回填（`POST /api/embed` + 每秒轮询 `GET /api/embed`）：
+
+```
+t=0s  coverage=60%  embedded=206/341  round=1
+t=8s  coverage=88%  embedded=300/341  round=1
+t=9s  coverage=88%  embedded=300/341  round=2   ← 自动进入第二轮
+t=13s coverage=100% embedded=341/341  round=2  finished=true exit=0
+```
+
+日志尾部：`第 1 轮完成，覆盖 300 / 341（88%），继续…` → `回填完成：341 / 341（100%）`。
+
+数据库直查确认，不是状态文件骗人：
+
+```
+insights(未删)=341  有向量=341  1024维(float32=4096字节)=341
+```
+
+顺带确认了单条路径也是通的（`mnemon embed <id>` → `{"dimension":1024,"status":"embedded"}`），此前 0% 的根因只是轮次上限，不是 key 或端点问题。
+
 ## 0.13.0 — 2026-10-31
 
 **面板新增凭据管理与向量化状态，配置项改为表单式布局。**
