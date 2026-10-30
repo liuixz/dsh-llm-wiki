@@ -88,30 +88,36 @@ export function apply(ctx, config = {}) {
   try { console.log("[dsh-llm-wiki] apply() vault=" + vault + " rules=" + existsSync(rulesFile) + " preview=" + existsSync(previewFile) + " pipeline=" + existsSync(PIPELINE)); } catch {}
 
   // ── 1) systemPrompt 注入 ──
+  // 热重载（HMR）时旧条目的 effect 可能还没排空，同名 section 会撞 already registered。
+  // 这里必须自己兜住：否则 apply() 整体抛出，后面的面板路由就再也注册不上
+  // （表现为日志里 "1 entry did not activate" + 面板 404）。
+  const safeSection = (name, order, text) => {
+    ctx.effect(() => {
+      try {
+        return ctx.systemPrompt.section({ name, order, text });
+      } catch (e) {
+        try { console.log("[dsh-llm-wiki] prompt section " + name + " 跳过: " + (e && e.message ? e.message : e)); } catch {}
+        return () => {};
+      }
+    }, "dsh-llm-wiki.prompt." + name.replace(/^llm-wiki:/, ""));
+  };
+
   // 知识预览（先于守则，order 更低先出现）
-  ctx.effect(() => ctx.systemPrompt.section({
-    name: "llm-wiki:preview",
-    order: previewOrder,
-    text: (context) => {
-      if (!isMainAgent(context)) return "";
-      const idx = readPreview();
-      if (!idx) return "";
-      return "\n---\n# LLM-Wiki 知识库（管线自动维护）\n\n" + idx + takeCompileHint() +
-        "\n\n**检索入口**：先跑 wiki-router.mjs 分流 → wiki 走 wiki-retrieval 融合检索 / session 走会话语义 / live 直接实测 / docs 走 Documents / hot 看热记忆。\n---\n";
-    },
-  }), "dsh-llm-wiki.prompt.preview");
+  safeSection("llm-wiki:preview", previewOrder, (context) => {
+    if (!isMainAgent(context)) return "";
+    const idx = readPreview();
+    if (!idx) return "";
+    return "\n---\n# LLM-Wiki 知识库（管线自动维护）\n\n" + idx + takeCompileHint() +
+      "\n\n**检索入口**：先跑 wiki-router.mjs 分流 → wiki 走 wiki-retrieval 融合检索 / session 走会话语义 / live 直接实测 / docs 走 Documents / hot 看热记忆。\n---\n";
+  });
 
   // schema 守则
-  ctx.effect(() => ctx.systemPrompt.section({
-    name: "llm-wiki:rules",
-    order: rulesOrder,
-    text: (context) => {
-      if (!isMainAgent(context)) return "";
-      const schema = readRules();
-      if (!schema) return "";
-      return "\n---\n# LLM-Wiki 知识库运行规则\n\n" + schema + "\n---\n";
-    },
-  }), "dsh-llm-wiki.prompt.rules");
+  safeSection("llm-wiki:rules", rulesOrder, (context) => {
+    if (!isMainAgent(context)) return "";
+    const schema = readRules();
+    if (!schema) return "";
+    return "\n---\n# LLM-Wiki 知识库运行规则\n\n" + schema + "\n---\n";
+  });
 
   // ── 1.5) 管理面板的 Host 半边（降级页 + /api/*） ──
   // 客户端插件（lib/client.js）在 slot 里渲染同一个 web/panel.js；这里只负责数据与写入。

@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.12.1 — 2026-10-30
+
+管理面板的界面优化。**修掉一个真 bug**：样式在 slot 里根本没加载。
+
+### 修复：slot 模式下界面是无样式渲染
+
+`web/panel.css` 只被降级页 `web/panel.html` 的 `<link>` 引用；而设置页 / 右栏走 `lib/client.js` 动态插 `<script src="/llm-wiki-panel/panel.js">`，`panel.js` 自身不注入样式。结果是**在 DSH 里看到的其实是浏览器默认样式**，只有单独打开降级页才好看。
+
+- 样式改为内建进 `web/panel.js`（`var STYLE` + `ensureStyle()`，首次 `mount()` 时插一个 `<style data-llm-wiki="1">`，已存在则跳过，失败静默不影响功能）。两个入口自动一致，不会再出现「一处有一处没有」。
+- 删除 `web/panel.css`，`web/panel.html` 去掉 `<link>`。`/panel.css` 路由保留但返回空注释，避免旧引用 404。
+
+### 视觉
+
+- **跟随 DSH 主题令牌**：三级回退 `--dsw-alias-*` → 主题底层变量（`--foreground` / `--card` / `--muted` / `--border` / `--primary` / `--radius`）→ 自带兜底色值。全部声明在 `.llmwiki-panel` 作用域内，不污染宿主。
+- **卡片式分组 + 组内紧凑表格**：每张表包一张卡片（图标 + 标题 + 右侧提示 + 内容），配置页拆成「配置项 / 层 / 漂移」三张卡，漂移卡带警示色。
+- **内联 SVG 图标**（12 个，14px 线性，全部常量）：搜索、刷新、齿轮、日历、时钟、播放、勾、警示、锁、队列、电源、终端。
+- **标签页改成分段控件**：圆角容器 + `is-active` 白底阴影，取代下划线。
+- **状态胶囊改圆点 + 文字**：状态点 7px，运行中呼吸动画，三态 运行中 / 有锁 / 空闲。
+- **趋势条重做**：6px 圆角条 + 进度，Δ 用等宽字体并按正负着色。
+- **紧凑模式（右栏窄宽度）表格降级为竖向键值卡**：`table/tbody/tr/td` 块化、`thead` 隐藏、`td::before { content: attr(data-label) }` 显示字段名。为此 `table()` 给每个 `td` 写了 `data-label`。
+- 字号 / 间距 / 圆角统一：面板 13px、行高 1.55，标题 15px/650，表头 11.5px/600，卡片内距 10–14px，圆角由 `--radius` 派生三档。
+- 无障碍：`:focus-visible` 描边、`aria-hidden` 图标、`prefers-reduced-motion` 关动画、`::selection` 配色。
+
+### 顺带修掉
+
+- 计划任务表缺「状态」列的表头（原来传了空字符串）→ 补 `任务 / 状态 / 计划 / 上次运行 / 结果 / 下次运行 / 操作`，`DICT` 增 `state` 中英词条。
+- `log.md` 摘要过长会把表格撑坏 → 超过 150 字符截断加省略号。
+- `ensureStyle` 用 `setAttribute` 而非 `dataset`，并兼容 `document.head` 缺失的宿主。
+
+### 验证
+
+- 渲染探针 31 项全过（假 DOM 跑 `mount()`）：样式注入与令牌存在、卡片与卡片头、分段控件三标签、五个运行按钮且都带图标、配置四键、`td[data-label]`、任务页与历史页内容、紧凑模式仍渲染表格、`destroy()` 清空。
+- 真实 DSH：`/llm-wiki-panel/` 200、`/api/state` 返回真实 5 任务 / 3 条健康记录 / 40 条日志；`/panel.js` 已带新样式。
+- Headless Chrome 截图三页（配置 / 任务 / 历史）+ 380px 窄栏紧凑模式，逐张核对布局无溢出、无裁切。
+
 ## 0.12.0 — 2026-10-29
 
 新增**图形管理面板**：在 DSH 里直接打开，看配置项 / 计划任务 / 运行历史，一键跑管线，改完提示重启。
@@ -7,7 +42,7 @@
 ### 面板本体
 
 - 新增客户端半边 `lib/client.js`：`window.__ModuleLoader__.load()` 注册两个座位——`settings.section`（设置页「LLM-Wiki」分区）与 `sidebar.right.pane.tab`（右栏标签，配合 `ctx.sidebarRightTabs.register` 的类型声明）。不引入任何构建步骤，手写 bundle 即可。
-- 新增两端共用的界面 `web/panel.js`（+ `web/panel.html` / `web/panel.css`）：`window.__LLMWikiPanel.mount(root, {base, locale, compact})`。slot 组件与降级页用的是同一份代码，不写两遍。所有文本走 `textContent`，不拼 HTML；深浅色随 `prefers-color-scheme`。
+- 新增两端共用的界面 `web/panel.js`（+ `web/panel.html`）：`window.__LLMWikiPanel.mount(root, {base, locale, compact})`。slot 组件与降级页用的是同一份代码，不写两遍。所有文本走 `textContent`，不拼 HTML；深浅色随 `prefers-color-scheme`。
 - 新增 Host 半边 `plugin/panel/server.mjs`：`ctx.webServer.register({ kind: "prefix", path: "/llm-wiki-panel" })` 提供降级页、静态资源与 `/api/*`。不用 Typert RPC——那需要 `@Remote` 装饰器 + 代码生成，与「零依赖零构建」冲突。
 - 座位组件包了 error boundary 且 render 里再 try/catch：slot 组件抛错会把整块座位打白（设置页会整页白屏），这是生态里踩过的坑。
 
@@ -32,7 +67,7 @@
 
 ### 验证
 
-- 端口层 11 项：`GET /`、`/panel.js`、`/panel.css`、`/api/state`、五个 runCommand、四个 configKey、未知键 400、未知任务 400、未知路由 404、坏 JSON 500。
+- 端口层 11 项：`GET /`、`/panel.js`、`/panel.css`（现返回空注释以兼容旧引用）、`/api/state`、五个 runCommand、四个 configKey、未知键 400、未知任务 400、未知路由 404、坏 JSON 500。
 - 隔离 `DSH_HOME` + 临时 profile patch 14 项：改 vault 只动一行、新增键落在 config 块内、`mainAgentOnly: false`、非整数 order 报错、空 vault 报错、重复写同值不产生第二行、占锁时 `/api/run` 409 且 reason 含 pid 与时长、占锁时排队 position=1、真跑 `--lint` exit=0 且跑完锁已释放、`/api/unlock` 200。
 - 客户端 7 项：bundle id、`inject`、两个座位的注册形状、`slots.inject` 包裹、组件能渲染不抛。
 - 渲染 15 项：用极简假 DOM 跑 `mount()`，三张表都能渲染，搜索框可过滤，`destroy()` 清空容器。

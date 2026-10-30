@@ -269,9 +269,8 @@ export function registerPanelRoutes(ctx) {
         return text(res, 200, readFileSync(file), "text/javascript; charset=utf-8");
       }
       if (sub === "/panel.css") {
-        const file = join(WEB_DIR, "panel.css");
-        if (!existsSync(file)) return text(res, 404, "");
-        return text(res, 200, readFileSync(file), "text/css; charset=utf-8");
+        // 样式已内建进 panel.js（首次 mount 注入 <style>），此路由仅为兼容旧引用保留
+        return text(res, 200, "/* styles are inlined in panel.js */\n", "text/css; charset=utf-8");
       }
 
       // --- API ---
