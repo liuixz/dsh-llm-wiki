@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.12.2 — 2026-10-30
+
+**修掉一个真 bug**：桌面版启动时管理面板根本没注册上，设置页与右栏都空白。
+
+### 修复：webServer 在 apply() 时还没挂载，面板路由永不注册
+
+日志只有一行线索：
+
+```
+[dsh-llm-wiki] apply() vault=... rules=true preview=true pipeline=true
+[dsh-llm-wiki] panel skipped: webServer service unavailable
+```
+
+根因是 `plugin/dsh-llm-wiki.mjs` 的静态注入只有 `["systemPrompt"]`，所以 `apply()` 在 `webServer` 之前就跑了；而原代码在 `apply()` 里**同步取一次**，取不到就走 skipped 分支并 `return () => {}`——**永不重试**。桌面版启动顺序里 `webServer` 常晚于本插件，于是面板恒不可用。
+
+历史日志里偶尔成功过，那是市场热挂载了第二份插件、时序恰好赶上的巧合；同一时间日志紧跟着 `client-modules: package dsh-llm-wiki resolves from multiple active Loader sources`（双来源冲突）。冲突修掉后，时序问题才暴露出来。
+
+改法（生态同一写法，见 `@deepseek-ai/dsh-client-modules:570`、`dsh-web-app:155`、`@lemoncat7/dsh-knowledge:417`）：
+
+- 用 `ctx.inject(["webServer"], registerPanel)` 等服务就绪后回调，而不是在 `apply()` 里取一次。
+- **不**把 `"webServer"` 写进静态 `inject` 数组：该服务在非 web 平台可能根本不存在，写进去会让整个插件（含提示词注入）都不激活。`ctx.inject` 是可选依赖语义，服务永不出现时回调不执行，插件其余部分照常工作。
+- 无 `ctx.inject` 的老版本 Cordis 退回同步路径；两者都没有时只打一行日志，不影响插件激活。
+
+### 验证
+
+`node --check` 通过。探针 `.probe-inject.mjs` 13 项全过，覆盖：apply() 不抛异常、`ctx.inject` 只调一次且依赖为 `["webServer"]`、webServer 延迟出现后仍注册成功、延迟注册后 `/api/state` 真能返回 200、启动即就绪时立即注册、无 `ctx.inject` 时走同步回退、缺 webServer 不影响插件激活、静态 inject 未含 webServer、路由注册抛错被内部吞掉（不炸整个插件）。
+
 ## 0.12.1 — 2026-10-30
 
 管理面板的界面优化。**修掉一个真 bug**：样式在 slot 里根本没加载。

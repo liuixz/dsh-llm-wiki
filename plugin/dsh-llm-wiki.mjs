@@ -121,33 +121,42 @@ export function apply(ctx, config = {}) {
 
   // ── 1.5) 管理面板的 Host 半边（降级页 + /api/*） ──
   // 客户端插件（lib/client.js）在 slot 里渲染同一个 web/panel.js；这里只负责数据与写入。
-  // webServer 是可选的：宿主没提供（例如非 web 平台）就整块跳过，不影响提示词注入。
-  ctx.effect(() => {
-    let disposer = null;
-    let server = null;
-    try {
-      server = ctx.get ? ctx.get("webServer") : ctx.webServer;
-    } catch { server = null; }
-    if (!server || typeof server.register !== "function") {
-      try { console.log("[dsh-llm-wiki] panel skipped: webServer service unavailable"); } catch {}
-      return () => {};
-    }
-    try {
-      disposer = registerPanelRoutes({
-        webServer: server,
-        vault: () => vault,
-        profile: () => detectProfile(PLUGIN_DIR),
-        log: (m) => { try { console.log(m); } catch {} },
-      });
-      try { console.log("[dsh-llm-wiki] panel routes registered at " + PANEL_PREFIX); } catch {}
-    } catch (e) {
-      try { console.log("[dsh-llm-wiki] panel routes failed: " + (e && e.message ? e.message : e)); } catch {}
-      disposer = null;
-    }
-    return () => {
-      try { if (typeof disposer === "function") disposer(); } catch {}
-    };
-  }, "dsh-llm-wiki.panel.routes");
+  //
+  // webServer 必须用 ctx.inject 等它就绪后再注册，不能在 apply() 里同步取一次：
+  // 桌面版启动时 webServer 往往晚于本插件挂载，ctx.get("webServer") 会拿到 undefined，
+  // 而那条分支一旦返回就永不重试 —— 表现为日志 "[dsh-llm-wiki] panel skipped" 而面板全空。
+  // 也不要把 "webServer" 写进静态 inject 数组：该服务在非 web 平台可能根本不存在，
+  // 写进去会让整个插件（含提示词注入）都不激活。生态同写法见
+  // @deepseek-ai/dsh-client-modules:570、dsh-web-app:155、@lemoncat7/dsh-knowledge:417。
+  const registerPanel = (webCtx) => {
+    webCtx.effect(() => {
+      let disposer = null;
+      try {
+        disposer = registerPanelRoutes({
+          webServer: webCtx.webServer,
+          vault: () => vault,
+          profile: () => detectProfile(PLUGIN_DIR),
+          log: (m) => { try { console.log(m); } catch {} },
+        });
+        try { console.log("[dsh-llm-wiki] panel routes registered at " + PANEL_PREFIX); } catch {}
+      } catch (e) {
+        try { console.log("[dsh-llm-wiki] panel routes failed: " + (e && e.message ? e.message : e)); } catch {}
+        disposer = null;
+      }
+      return () => {
+        try { if (typeof disposer === "function") disposer(); } catch {}
+      };
+    }, "dsh-llm-wiki.panel.routes");
+  };
+  if (typeof ctx.inject === "function") {
+    // 可选依赖：webServer 永远不出现时回调不执行，插件其余部分照常工作。
+    ctx.inject(["webServer"], registerPanel);
+  } else if (ctx.webServer && typeof ctx.webServer.register === "function") {
+    // 老版本 Cordis 没有 ctx.inject，退回同步路径（此时服务已就绪才有效）。
+    registerPanel(ctx);
+  } else {
+    try { console.log("[dsh-llm-wiki] panel skipped: webServer service unavailable"); } catch {}
+  }
 
   // ── 2) session/disposed → 触发管线 ──
   let lastRun = 0;

@@ -258,6 +258,7 @@ dsh-llm-wiki/
 
 ## 版本
 
+- `0.12.2`：修掉桌面版启动时**管理面板根本没注册上**的真 bug。根因是 `apply()` 里同步取 `ctx.get("webServer")`，而插件静态注入只有 `["systemPrompt"]`，桌面版启动时 `webServer` 常晚于本插件就绪 → 走 skipped 分支且永不重试，设置页与右栏都空白。改用 `ctx.inject(["webServer"], cb)` 等服务就绪后回调（生态同一写法），不把 `webServer` 写进静态 inject 数组（非 web 平台没有该服务，写进去会让整个插件不激活）。13 项探针验证，含「延迟出现后仍注册成功」与「随后 `/api/state` 真返回 200」。
 - `0.12.1`：管理面板界面优化，并修掉一个真 bug——**样式在 slot 里根本没加载**（`web/panel.css` 只被降级页引用，设置页/右栏看到的是浏览器默认样式）。样式改为内建进 `web/panel.js`（首次 `mount()` 注入 `<style>`），删除 `panel.css`；配色改走 DSH 主题令牌三级回退（`--dsw-alias-*` → 主题底层变量 → 兜底色值），表格改成卡片分组、内联 SVG 图标、标签页改分段控件、状态改圆点+文字、趋势条重做；窄栏 `compact` 下表格降级为竖向键值卡（`td[data-label]`）。顺带补计划任务表缺的「状态」表头、超长日志摘要截断。
 - `0.12.0`：新增**图形管理面板**——`settings.section` 与 `sidebar.right.pane.tab` 两个座位，三张表（配置项 / 计划任务 / 运行历史）共用一份 `web/panel.js`，五个按钮一键跑管线，顶部一个搜索框；降级路径是 `ctx.webServer` 上的 `/llm-wiki-panel` 页面。配置只写 profile 的 `cordis.patch.yml` 并提示重启；新增 `scripts/pipeline-lock.mjs` 全局互斥锁（管线内部持锁，计划任务与面板共用，抢不到 exit 75，支持 `--queue` 排队与面板「强制解锁」）；面板只做锁预检而不自己抢锁，避免父子进程互锁。决策记入 `docs/adr/0001~0003`，术语记入 `GLOSSARY.md`。
 - `0.11.2`：发版脚本不再假失败。`scripts/release.ps1` 的 `Invoke-Native` 改用 `System.Diagnostics.Process` 分开重定向 stdout/stderr/stdin，只看退出码判成败——修复 `git push` 成功却因 stderr 被 PowerShell 当成终止性错误而以 exit 1 收场；顺带修掉旧实现用临时 `.cmd` 导致 `%` 被展开、含引号参数直接抛错两个 Windows 专属坑（新的 `ConvertTo-CommandLineArg` 按 Windows 规则转义）；脚本本身改为 UTF-8 with BOM，避免 PowerShell 5.1 按 ANSI 读取中文注释后解析错位。另外补了幂等：同一版本重跑时没有可提交内容则跳过提交、Release 已存在则更新正文，不再因「nothing to commit」或 422 报失败。
