@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.13.0 — 2026-10-31
+
+**面板新增凭据管理与向量化状态，配置项改为表单式布局。**
+
+### 新增 1：凭据管理（SF_API_KEY）
+
+`SF_API_KEY` 是硅基流动的 key，仓库里四处脚本都按 `~/.dsh/.credentials.yaml` 的 `refs` 读它（`scripts/llm-wiki-pipeline.mjs:1015` 的记忆体向量化、`scripts/wiki-router.mjs:132` 的会话语义索引、`scripts/profile-extract.mjs:27` 与 `scripts/profile-distill.mjs:168` 的模型降级兜底）。此前只能手改文件，现在面板可以填。
+
+它和原有四项配置的本质区别决定了实现方式（ADR-0004）：**只写不读**。
+
+- `plugin/panel/secret.mjs`（新建）：`readSecretState()` 只返回 `{configured, hint, length}`，`hint` 形如 `sk-…8gOE0`（首三位 + 省略号 + 末四位；长度 ≤8 时全打码）。明文永远不出进程，也不进 `/api/state` 的 JSON。
+- `writeSecret()` 落盘前**先打一次真实接口验证**：`POST https://api.siliconflow.cn/v1/embeddings`，模型 `BAAI/bge-m3`，`input:["ping"]`，只有 200 才写。失败时抛出的 error 带 `status` / `apiCode` / `apiMessage`，`message` 拼成 `HTTP 401 · code 30014 · Token is invalid.` 形式——面板原样显示它，不吞成「保存失败」。
+- 断网时可勾选「跳过验证」直接落盘（否则用户在网络异常时完全无法配置）。
+- `clearSecret()` 整行删除该键，而不是写空串；界面提示「向量检索将降级为关键词匹配」。
+- 三个凭据接口（`GET/POST/DELETE /api/secret`）与 `POST /api/reveal` 都检查 `req.socket.remoteAddress` 是否回环，非回环 403。其余接口不限制（不含密级数据）。
+- 保存后提示「下一次管线运行即生效（无需重启）」——四处脚本都是进程启动时 `readFileSync` 读凭据文件，面板 `spawn` 的管线是新进程。这一点与配置项不同，界面上分开提示。
+
+### 新增 2：向量化状态与回填
+
+存了 key 不等于有向量：本机 341 条记忆的 `embedding` 全是 NULL（`mnemon embed --status` 报 `coverage: 0%`），不显式提示就只会让用户以为没生效。
+
+- `plugin/panel/embed.mjs`（新建）：复刻管线的三件套并保持完全一致 —— `readEmbedKey()` 的三级回退、`mnemonCli()` 的 exe 探测（本机命中 `%APPDATA%\npm\node_modules\@mnemon-dev\mnemon\node_modules\@mnemon-dev\mnemon-win32-x64\bin\mnemon.exe`）、`embedEnv()` 注入 `MNEMON_EMBED_PROTOCOL=openai`（默认值 `ollama` 会去打不存在的 `nomic-embed-text`）。
+- 面板显示「向量化覆盖率 / 已向量化 M/T / 模型 + 覆盖率条」，覆盖率 <100% 时给出「为什么配了 key 覆盖率还是 0」。
+- 「回填向量」按钮 → `POST /api/embed` → `spawn mnemon embed --all`，走同一把 `.pipeline.lock`（有活锁返回 409），1s 轮询输出，跑完自动刷新覆盖率。
+
+### 改进：配置项改为表单式布局
+
+原先是表格 + 内联编辑，四项配置天然是表单而不是表格：`previewOrder` / `rulesOrder` 对用户毫无意义，不加说明就是两个神秘数字。
+
+- `renderConfig()` 重写：每项一行 `键名（等宽）+ 灰色说明 + 值 + 操作`。四项都补了用途说明（vault「知识库根目录。改这里等于换一整座库…」等）。
+- 数字项改用 `<input type="number" min="0" max="999">`，`vault` 行多一个「打开目录」按钮（`POST /api/reveal`，按平台调 `explorer.exe` / `open` / `xdg-open`）。
+
+### 验证
+
+- `plugin/panel/secret.mjs` + `embed.mjs` + 路由：临时探针 63 项全过（隔离 `DSH_HOME` + 假凭据文件，覆盖不回显明文、写入落盘、其他 refs 与 `records` 段未动、幂等、空值/含空白/未知凭据三类拒绝、真实 401 透出 `code 30014`、验证失败不落盘、清除只删该键、`embedEnv` 协议正确、POST 失败 body 带 `code`/`status`/`apiMessage`）。
+- 界面渲染：临时探针 37 项全过（假 DOM 跑 `mount()`，覆盖表单行数、四项说明、凭据只显示尾部 4 位、编辑态出现 password 框且不再显示 hint、失败横幅含完整 `HTTP 401 · code 30014 · Token is invalid.` 且不含「保存失败」字样）。
+- 两个探针均为临时文件，跑完即删。
+
+需要重启 DSH 才看到新界面（`lib/client.js` 与 `web/panel.js` 要重建客户端 bundle）。
+
 ## 0.12.4 — 2026-10-30
 
 **只保留设置页入口，并修掉两处界面缺陷。**

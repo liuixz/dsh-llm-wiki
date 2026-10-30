@@ -120,17 +120,21 @@ dsh plugin --profile desktop add github:iwtown/dsh-llm-wiki
 
 | 区域 | 能做什么 |
 |---|---|
-| 配置项 | 看各层配置的生效值与漂移；改 `vault` / `previewOrder` / `rulesOrder` / `mainAgentOnly`（只写 profile 的 `cordis.patch.yml`，写完提示重启） |
+| 配置项 | 表单式布局，每项带用途说明。改 `vault`（可「打开目录」）/ `previewOrder` / `rulesOrder` / `mainAgentOnly`（只写 profile 的 `cordis.patch.yml`，写完提示重启）；同时显示各层配置的生效值与漂移 |
+| 凭据 | 填 / 换 / 清 `SF_API_KEY`（硅基流动，用于记忆体向量化与会话语义索引）。**只写不读**：界面只显示 `sk-…8gOE0`，明文不进浏览器；保存前先打一次真实 `POST /v1/embeddings` 验证，失败原样显示 `HTTP 401 · code 30014 · Token is invalid.`；写进 `~/.dsh/.credentials.yaml`，**无需重启**，下一次管线运行即生效 |
+| 向量化状态 | 覆盖率 / 已向量化 M/T / 模型 + 覆盖率条。配了 key 但覆盖率仍是 0% 时给出原因，并提供「回填向量」按钮（`mnemon embed --all`，走同一把锁，1s 轮询输出） |
 | 计划任务 | 看五个任务的启用状态 / 上次结果 / 下次运行；启用、停用、改触发时刻（非 Windows 只读展示） |
 | 运行历史 | `log.md` 条目 + `reports/health/health-YYYY-MM.csv` 趋势（每行带与上一行的 Δ 环比） |
 
-顶部一个搜索框过滤三张表；五个运行按钮跑管线；运行中 1s 轮询输出，跑完自动停。
+顶部一个搜索框过滤各张表；五个运行按钮跑管线；运行中 1s 轮询输出，跑完自动停。
+
+**凭据的边界**：三个凭据接口（`GET/POST/DELETE /api/secret`）与 `POST /api/reveal` 只接受回环来源（`127.0.0.1` / `::1`），其它来源 403。其余接口不含密级数据，不加限制。
 
 **并发**：管线自己持锁（`scripts/pipeline-lock.mjs`，锁文件 `~/.dsh/llm-wiki/.pipeline.lock`），面板只做预检。已有任务在跑时按钮变成「排队」与「强制解锁」，排队的那条会在前一条结束后自动拉起（`drainQueue`）。计划任务与面板共用同一把锁，所以两者不会撞车。
 
 > 面板是**可选组件**：不想用就把 `package.json` 里的 `dsh.client` 与 `exports["./client"]` 去掉、删掉 `lib/` 与 `web/`，插件其余功能不受影响。
 
-设计取舍见 `docs/adr/0001-panel-as-client-plugin.md`；写入哪一层见 `0002-config-write-target.md`；锁的语义见 `0003-pipeline-mutex.md`；术语见 `GLOSSARY.md`。
+设计取舍见 `docs/adr/0001-panel-as-client-plugin.md`；写入哪一层见 `0002-config-write-target.md`；锁的语义见 `0003-pipeline-mutex.md`；凭据为何与配置项分开见 `0004-secret-config.md`；术语见 `GLOSSARY.md`。
 
 ## 管线命令
 
@@ -231,7 +235,7 @@ node <仓库>/scripts/profile-distill.mjs --since 30d    # 复核 → 候选 →
 ```
 dsh-llm-wiki/
 ├─ plugin/dsh-llm-wiki.mjs        # 注入 + 生命周期 + 编译提示
-├─ plugin/panel/                  # 管理面板的 Host 半边（配置/任务/历史/管线/路由）
+├─ plugin/panel/                  # 管理面板的 Host 半边（配置/凭据/向量化/任务/历史/管线/路由）
 ├─ lib/client.js                  # 管理面板的 Client 半边（设置页分区）
 ├─ web/panel.{html,js}            # 两端共用的界面（样式内建在 panel.js）
 ├─ locale/{zh,en}.json            # 面板的标语
@@ -255,6 +259,7 @@ dsh-llm-wiki/
 
 ## 版本
 
+- `0.13.0`：面板新增**凭据管理与向量化状态**，配置项改为表单式布局。① 新增 `SF_API_KEY` 凭据卡片：**只写不读**，界面只显示 `sk-…8gOE0`，明文不进 `/api/state`；保存前先打一次真实 `POST /v1/embeddings`（`BAAI/bge-m3`）验证，失败原样透出 `HTTP 401 · code 30014 · Token is invalid.` 而非笼统「保存失败」；可「跳过验证」落盘（断网用）；清除是整行删键不是写空串；三个凭据接口与 `POST /api/reveal` 限回环来源，非回环 403；写 `~/.dsh/.credentials.yaml`，**无需重启**（下一次管线运行即生效，与配置项不同）。② 新增「向量化状态」块：覆盖率 / 已向量化 M/T / 模型 + 覆盖率条；覆盖率为 0% 时说明原因，并提供「回填向量」按钮（`mnemon embed --all`，走同一把锁，1s 轮询）。③ 配置项重写为表单布局，每项带用途说明，数字项用 `number` 输入、`vault` 带「打开目录」。决策记入 `docs/adr/0004-secret-config.md`，术语补「配置项 / 凭据 / 向量化覆盖率」。临时探针验证 63 + 37 项全过。
 - `0.12.4`：只保留设置页入口，并修掉两处界面缺陷。① `settings.section` 注册时补上 `label: () => "LLM-Wiki"`——设置页左侧导航靠它渲染分区名称，缺了只有内容没有名字；② 表格外包一层 `.lw-table-wrap`（`overflow-x:auto`）——`.lw-card` 是 `overflow:hidden` 的，任务表列多时超出部分被直接裁掉且无法滚动；紧凑模式下该层改为 `overflow-x:visible`，与键值折叠配合；③ 移除右栏 `sidebar.right.pane.tab` 座位（含 `SidebarPane`、`TAB_ID`、`ctx.sidebarRightTabs` 与 `package.json` 里的 `dsh-client-ui-sidebar-right` 注入），只留设置页一个入口。
 - `0.12.3`：修掉**设置页关掉再打开就空白**的真 bug。`PanelHost` 的 cleanup 清掉了 `scriptPromise` 与 `window.__LLMWikiPanel`，但插入的 `<script>` 节点留在 `head`；第二次打开走 existing 分支给已 load 完的节点挂 `load` 监听，浏览器不会补发该事件 → Promise 永不 settle → 不 mount。改法：cleanup 只销毁实例，模块级加载状态保留；load 时打 `dataset.llmWikiLoaded` 标记，existing 分支见标记直接 resolve。同时修掉失败后 `scriptPromise` 永久缓存 rejected、失败节点不清理两个连带缺陷。用临时探针（假 DOM 模拟「已 load 不再补发」）验证 18 项全过。
 - `0.12.2`：修掉桌面版启动时**管理面板根本没注册上**的真 bug。根因是 `apply()` 里同步取 `ctx.get("webServer")`，而插件静态注入只有 `["systemPrompt"]`，桌面版启动时 `webServer` 常晚于本插件就绪 → 走 skipped 分支且永不重试，设置页空白。改用 `ctx.inject(["webServer"], cb)` 等服务就绪后回调（生态同一写法），不把 `webServer` 写进静态 inject 数组（非 web 平台没有该服务，写进去会让整个插件不激活）。13 项探针验证，含「延迟出现后仍注册成功」与「随后 `/api/state` 真返回 200」。

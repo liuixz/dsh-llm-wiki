@@ -4,13 +4,20 @@
  * 提供两条路由（同一个 prefix 注册，ADR-0001 的「降级页」）：
  *   GET  /llm-wiki-panel/            降级页（独立 HTML，slot 挂不上时用浏览器标签打开）
  *   GET  /llm-wiki-panel/panel.js    两端共用的界面代码
- *   GET  /llm-wiki-panel/api/state   一次性取全部数据（配置 / 计划任务 / 运行历史 / 锁）
+ *   GET  /llm-wiki-panel/api/state   一次性取全部数据（配置 / 凭据 / 向量化 / 计划任务 / 运行历史 / 锁）
  *   POST /llm-wiki-panel/api/config  改一个配置键
+ *   GET  /llm-wiki-panel/api/secret  凭据状态（只有打码提示，无明文）
+ *   POST /llm-wiki-panel/api/secret  写入凭据（落盘前先验证）
+ *   DELETE /llm-wiki-panel/api/secret 清除凭据
+ *   GET  /llm-wiki-panel/api/embed   向量化覆盖率 + 回填进度
+ *   POST /llm-wiki-panel/api/embed   回填向量（后台跑 mnemon embed --all）
+ *   POST /llm-wiki-panel/api/reveal  在系统文件管理器里打开某个目录
  *   POST /llm-wiki-panel/api/task    启用/停用、改时间
  *   POST /llm-wiki-panel/api/run     跑管线（拒绝并发）
  *   GET  /llm-wiki-panel/api/run     查当前这次运行的输出（面板轮询）
  *
- * 写入路径一律经过 config.mjs / tasks.mjs，本文件只做参数校验与 JSON 包装。
+ * 写入路径一律经过 config.mjs / secret.mjs / tasks.mjs，本文件只做参数校验与 JSON 包装。
+ * 凭据接口与 reveal 限定回环来源（ADR-0004）。
  */
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -19,6 +26,8 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
 import { CONFIG_KEYS, detectProfile, readConfigState, writeConfigKey } from "./config.mjs";
+import { SECRET_KEYS, readSecretState, writeSecret, clearSecret } from "./secret.mjs";
+import { readEmbedStatus, backfillArgs, embedCommand, embedEnv } from "./embed.mjs";
 import { MANAGED_TASKS, readTasks, setTaskEnabled, setTaskTime, IS_WINDOWS } from "./tasks.mjs";
 import { buildHistory } from "./history.mjs";
 import { readLock, describeLock, forceRelease, acquire, release, enqueue, readQueue, drainQueue } from "../../scripts/pipeline-lock.mjs";
@@ -38,6 +47,23 @@ export const RUN_COMMANDS = [
 
 /** 当前这次由面板拉起的运行（内存里，进程重启即丢） */
 let currentRun = null;
+
+/** 当前这次由面板拉起的向量回填（与管线运行分开记账，共用一把锁） */
+let currentBackfill = null;
+
+/**
+ * 密钥接口的来源校验（ADR-0004 第 3 条）。
+ * 桌面版 webServer 无 server-wide 鉴权，同机进程打 127.0.0.1 是通的；
+ * 这里只挡「host 被改绑到 0.0.0.0 后从局域网读凭据」这一类。
+ */
+function isLoopbackRequest(req) {
+  const addr = (req && req.socket && req.socket.remoteAddress) || "";
+  const s = String(addr);
+  if (s === "127.0.0.1" || s === "::1" || s === "::ffff:127.0.0.1") return true;
+  if (s.startsWith("127.")) return true;
+  if (s === "::ffff:0:0" || s === "") return true; // 无 socket 地址（unix socket / 测试）放行
+  return false;
+}
 
 /** 面板上下文里的 vault 读取器（registerPanelRoutes 时注入，startRun 里用） */
 let vaultReader = () => "";
@@ -114,6 +140,18 @@ function publicState(ctx) {
   const profile = ctx.profile();
   const cfg = readConfigState(vault, profile);
   const lock = readLock();
+  let secrets = { path: "", exists: false, items: [] };
+  try {
+    secrets = readSecretState();
+  } catch (e) {
+    secrets = { path: "", exists: false, error: e && e.message ? e.message : String(e), items: [] };
+  }
+  let embed = { available: false, reason: "未读取" };
+  try {
+    embed = readEmbedStatus();
+  } catch (e) {
+    embed = { available: false, reason: e && e.message ? e.message : String(e) };
+  }
   return {
     ok: true,
     vault,
@@ -121,9 +159,12 @@ function publicState(ctx) {
     platform: process.platform,
     windows: IS_WINDOWS,
     configKeys: CONFIG_KEYS,
+    secretKeys: SECRET_KEYS,
     effective: cfg.effective,
     layers: cfg.layers,
     drift: cfg.drift,
+    secrets,
+    embed,
     runCommands: RUN_COMMANDS.map((c) => ({ id: c.id, label: c.label, hint: c.hint })),
     lock: lock
       ? { pid: lock.pid, command: lock.command, host: lock.host, stale: lock.stale, seconds: Math.round((Date.now() - lock.startedAt) / 1000), human: describeLock(lock) }
@@ -236,6 +277,82 @@ function startRun(commandId, by) {
 }
 
 /**
+ * 回填向量：后台跑 `mnemon embed --all`。
+ * 与管线共用同一把锁（同一时刻只允许一个后台任务改库）。
+ */
+function startBackfill(by) {
+  if (currentBackfill && !currentBackfill.finished) throw new Error("面板已有一次向量回填在进行中");
+
+  const held = readLock();
+  if (held && !held.stale) {
+    return {
+      ok: false,
+      busy: true,
+      reason: "管线正在运行（pid=" + held.pid + "，" + describeLock(held) + "）",
+      holder: { pid: held.pid, command: held.command, human: describeLock(held) },
+    };
+  }
+  const got = acquire("panel embed --all");
+  if (!got.ok) {
+    const h = got.holder;
+    return {
+      ok: false,
+      busy: true,
+      reason: h ? "锁被占用（pid=" + h.pid + "，" + describeLock(h) + "）" : "锁被占用",
+      holder: h ? { pid: h.pid, command: h.command, human: describeLock(h) } : null,
+    };
+  }
+
+  const { command, shell } = embedCommand();
+  const run = {
+    id: randomUUID(),
+    command: "embed",
+    args: backfillArgs(),
+    startedAt: Date.now(),
+    finished: false,
+    exitCode: null,
+    lines: [],
+    child: null,
+  };
+  currentBackfill = run;
+
+  let child;
+  try {
+    child = spawn(command, backfillArgs(), {
+      env: embedEnv(),
+      shell: !!shell,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (e) {
+    release();
+    run.finished = true;
+    run.exitCode = -1;
+    run.lines.push("启动失败: " + (e && e.message ? e.message : String(e)));
+    throw e;
+  }
+  run.child = child;
+  const push = (chunk) => {
+    const s = String(chunk);
+    for (const line of s.split(/\r?\n/)) {
+      if (line === "") continue;
+      run.lines.push(line);
+      if (run.lines.length > 2000) run.lines.splice(0, run.lines.length - 2000);
+    }
+  };
+  child.stdout.on("data", push);
+  child.stderr.on("data", push);
+  child.on("error", (e) => push("进程错误: " + (e && e.message ? e.message : String(e))));
+  child.on("close", (code) => {
+    run.finished = true;
+    run.exitCode = typeof code === "number" ? code : -1;
+    release();
+    void by;
+  });
+  return { ok: true, backfill: { id: run.id, startedAt: run.startedAt } };
+}
+
+/**
  * 注册路由。返回 disposer（由 ctx.effect 收尾）。
  * @param {{ webServer:any, vault:()=>string, profile:()=>string, log:(msg:string)=>void }} ctx
  */
@@ -294,6 +411,67 @@ export function registerPanelRoutes(ctx) {
         return json(res, 200, { ok: true, ...r, restartRequired: r.changed !== false });
       }
 
+      // --- 凭据（ADR-0004：只写不读 + 保存前验证 + 回环限定） ---
+      if (sub.startsWith("/api/secret")) {
+        if (!isLoopbackRequest(req)) {
+          return json(res, 403, { ok: false, reason: "凭据接口只接受回环地址的请求（来源: " + String((req.socket && req.socket.remoteAddress) || "?") + "）" });
+        }
+        if (sub === "/api/secret" && req.method === "GET") {
+          const s = readSecretState();
+          return json(res, 200, { ok: true, ...s });
+        }
+        if (sub === "/api/secret" && req.method === "POST") {
+          const body = await readBody(req);
+          const key = String(body.key || "");
+          if (!SECRET_KEYS.includes(key)) return json(res, 400, { ok: false, reason: "不支持管理这个凭据: " + key });
+          try {
+            const r = await writeSecret(key, body.value, { skipVerify: body.skipVerify === true });
+            return json(res, 200, { ok: true, ...r, restartRequired: false });
+          } catch (e) {
+            // 验证失败：把接口的 code/message 原样带回去（用户明确要求）
+            return json(res, 400, {
+              ok: false,
+              reason: e && e.message ? e.message : String(e),
+              code: e && e.code !== undefined ? e.code : "",
+              status: e && e.status !== undefined ? e.status : 0,
+              apiCode: e && e.apiCode !== undefined ? e.apiCode : "",
+              apiMessage: e && e.apiMessage !== undefined ? e.apiMessage : "",
+            });
+          }
+        }
+        if (sub === "/api/secret" && req.method === "DELETE") {
+          const body = await readBody(req);
+          const key = String(body.key || "");
+          if (!SECRET_KEYS.includes(key)) return json(res, 400, { ok: false, reason: "不支持管理这个凭据: " + key });
+          const r = clearSecret(key);
+          return json(res, 200, { ok: true, ...r, restartRequired: false });
+        }
+        return json(res, 405, { ok: false, reason: "不支持的方法: " + req.method });
+      }
+
+      // --- 向量化状态与回填 ---
+      if (sub === "/api/embed" && req.method === "GET") {
+        const status = readEmbedStatus();
+        return json(res, 200, {
+          ok: true,
+          status,
+          backfill: currentBackfill
+            ? {
+                id: currentBackfill.id,
+                startedAt: currentBackfill.startedAt,
+                finished: currentBackfill.finished,
+                exitCode: currentBackfill.exitCode,
+                output: currentBackfill.lines.slice(-200),
+              }
+            : null,
+        });
+      }
+
+      if (sub === "/api/embed" && req.method === "POST") {
+        const r = startBackfill("panel");
+        return json(res, r.ok ? 200 : 409, r);
+      }
+
       if (sub === "/api/task" && req.method === "POST") {
         const body = await readBody(req);
         const name = String(body.name || "");
@@ -324,6 +502,32 @@ export function registerPanelRoutes(ctx) {
             output: currentRun.lines.slice(-400),
           },
         });
+      }
+
+      // --- 打开 vault 目录（浏览器标签打不开资源管理器，只能由 Host spawn） ---
+      if (sub === "/api/reveal" && req.method === "POST") {
+        if (!isLoopbackRequest(req)) {
+          return json(res, 403, { ok: false, reason: "该接口只接受回环地址的请求" });
+        }
+        const body = await readBody(req);
+        const target = String(body.path || currentVault() || "").trim();
+        if (!target) return json(res, 400, { ok: false, reason: "没有可打开的目录" });
+        if (!existsSync(target)) return json(res, 400, { ok: false, reason: "目录不存在: " + target });
+        try {
+          if (process.platform === "win32") {
+            const ch = spawn("explorer.exe", [target], { detached: true, stdio: "ignore", windowsHide: false });
+            ch.unref();
+          } else if (process.platform === "darwin") {
+            const ch = spawn("open", [target], { detached: true, stdio: "ignore" });
+            ch.unref();
+          } else {
+            const ch = spawn("xdg-open", [target], { detached: true, stdio: "ignore" });
+            ch.unref();
+          }
+          return json(res, 200, { ok: true, path: target });
+        } catch (e) {
+          return json(res, 500, { ok: false, reason: "打开目录失败: " + (e && e.message ? e.message : String(e)) });
+        }
       }
 
       if (sub === "/api/unlock" && req.method === "POST") {

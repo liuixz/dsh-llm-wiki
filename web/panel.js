@@ -255,6 +255,30 @@
 .lw-delta.is-up{color:var(--lw-ok);}
 .lw-delta.is-down{color:var(--lw-bad);}
 
+/* ---- 表单（0.13.0 配置项与凭据共用） ---- */
+.lw-form{display:flex;flex-direction:column;}
+.lw-form-row{
+  display:flex;gap:16px;align-items:flex-start;
+  padding:12px 14px;border-bottom:1px solid var(--lw-border);
+}
+.lw-form-row:last-child{border-bottom:0;}
+.lw-form-label{flex:0 0 40%;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.lw-form-key{font-family:var(--lw-mono);font-size:12px;font-weight:600;color:var(--lw-fg);word-break:break-all;}
+.lw-form-desc{font-size:11.5px;line-height:1.55;color:var(--lw-fg-3);}
+.lw-form-value{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.lw-check{width:13px;height:13px;margin:0;accent-color:var(--lw-brand);}
+.lw-check-label{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--lw-fg-3);cursor:pointer;}
+.lw-stats{display:flex;gap:10px;flex-wrap:wrap;}
+.lw-stat{
+  flex:1 1 120px;min-width:110px;padding:9px 11px;
+  border:1px solid var(--lw-border);border-radius:var(--lw-r-md);
+  background:var(--lw-bg-2);
+}
+.lw-stat-k{font-size:11px;color:var(--lw-fg-3);margin-bottom:3px;}
+.lw-stat-v{font-family:var(--lw-mono);font-size:13px;font-weight:600;color:var(--lw-fg);word-break:break-all;}
+.lw-progress{height:7px;border-radius:999px;background:var(--lw-bg-2);overflow:hidden;}
+.lw-progress i{display:block;height:100%;border-radius:999px;background:var(--lw-brand);transition:width .3s ease;}
+
 /* ---- 空态 ---- */
 .lw-empty{padding:26px 16px;text-align:center;color:var(--lw-fg-3);font-size:12px;}
 
@@ -412,7 +436,48 @@
       windowsOnly: "当前平台不支持计划任务管理，仅展示为空。",
       logFile: "日志文件",
       healthDir: "健康数据",
-      entries: "条记录"
+      entries: "条记录",
+      /* --- 配置项说明（0.13.0 表单化） --- */
+      cfgDesc_vault: "知识库根目录。改这里等于换一整座库，管线、检索、计划任务全部跟着走。",
+      cfgDesc_previewOrder: "系统提示里「预览」那一节的排序值，数字小的排在前面。一般不用改。",
+      cfgDesc_rulesOrder: "系统提示里「规则」那一节的排序值，数字小的排在前面。一般不用改。",
+      cfgDesc_mainAgentOnly: "只在主会话注入系统提示；子代理会话不注入。",
+      cfgTitle: "配置项",
+      cfgHint: "真源 · 改完需重启 DSH",
+      openDir: "打开目录",
+      /* --- 凭据（ADR-0004） --- */
+      secTitle: "凭据",
+      secHint: "只写不读 · 存于 $DSH_HOME/.credentials.yaml",
+      secConfigured: "已配置",
+      secMissing: "未配置",
+      secImpact: "影响范围",
+      secDesc: "说明",
+      secSet: "填写",
+      secChange: "更换",
+      secClear: "清除",
+      secCancel: "取消",
+      secSave: "验证并保存",
+      secSavedNoRestart: "已保存。下一次管线运行即生效，无需重启 DSH。",
+      secCleared: "已清除。向量检索将降级为纯关键词匹配。",
+      secClearing: "确定清除 {k} 吗？清除后召回会降级为关键词匹配。",
+      secPlaceholder: "粘贴 sk- 开头的 key",
+      secSkipVerify: "跳过验证（断网时用）",
+      secVerifying: "验证中…",
+      secEmpty: "凭据不能为空",
+      secReadonlyHint: "明文永不回显，只显示尾部 4 位",
+      /* --- 向量化状态 --- */
+      embTitle: "向量化状态",
+      embCoverage: "覆盖率",
+      embEmbedded: "已向量化",
+      embTotal: "总数",
+      embModel: "模型",
+      embNoKey: "未配置凭据，向量化不可用（召回走关键词）",
+      embReady: "凭据已配置",
+      embBackfill: "回填向量",
+      embBackfilling: "回填中…",
+      embDone: "回填完成",
+      embHint: "配好凭据不等于有向量：历史条目需要单独回填一次",
+      embWhy: "sync 只导入新内容或改过的页面；hash 未变的历史条目不会重导，向量要单独回填。"
     },
     en: {
       title: "LLM-Wiki Admin",
@@ -467,7 +532,48 @@
       windowsOnly: "Task management is not supported on this platform; shown as empty.",
       logFile: "Log",
       healthDir: "Health data",
-      entries: "entries"
+      entries: "entries",
+      /* --- config entries (0.13.0 form layout) --- */
+      cfgDesc_vault: "Knowledge base root. Changing it swaps the whole vault — pipeline, retrieval and scheduled tasks all follow it.",
+      cfgDesc_previewOrder: "Order value of the Preview section in the system prompt; lower comes first. Usually no need to touch.",
+      cfgDesc_rulesOrder: "Order value of the Rules section in the system prompt; lower comes first. Usually no need to touch.",
+      cfgDesc_mainAgentOnly: "Inject the system prompt in main sessions only; subagent sessions are skipped.",
+      cfgTitle: "Settings",
+      cfgHint: "Source of truth · restart DSH after saving",
+      openDir: "Open folder",
+      /* --- secrets (ADR-0004) --- */
+      secTitle: "Credentials",
+      secHint: "Write-only · kept in $DSH_HOME/.credentials.yaml",
+      secConfigured: "Configured",
+      secMissing: "Not set",
+      secImpact: "Affects",
+      secDesc: "About",
+      secSet: "Set",
+      secChange: "Replace",
+      secClear: "Clear",
+      secCancel: "Cancel",
+      secSave: "Verify and save",
+      secSavedNoRestart: "Saved. Takes effect on the next pipeline run — no restart needed.",
+      secCleared: "Cleared. Vector recall falls back to keyword matching.",
+      secClearing: "Clear {k}? Recall will fall back to keyword matching.",
+      secPlaceholder: "Paste the sk- key",
+      secSkipVerify: "Skip verification (offline)",
+      secVerifying: "Verifying…",
+      secEmpty: "Key cannot be empty",
+      secReadonlyHint: "Plaintext is never echoed back; only the last 4 chars are shown",
+      /* --- embedding coverage --- */
+      embTitle: "Embedding coverage",
+      embCoverage: "Coverage",
+      embEmbedded: "Embedded",
+      embTotal: "Total",
+      embModel: "Model",
+      embNoKey: "No credential configured — vectorization unavailable (keyword recall)",
+      embReady: "Credential configured",
+      embBackfill: "Backfill vectors",
+      embBackfilling: "Backfilling…",
+      embDone: "Backfill finished",
+      embHint: "A credential does not create embeddings: existing entries need one backfill",
+      embWhy: "sync only imports new or changed pages; entries whose hash is unchanged are not reimported, so their vectors need a separate backfill."
     }
   };
 
@@ -533,11 +639,13 @@
       error: "",
       tab: initialTab,
       query: "",
-      editing: null,      // { kind:'config'|'taskTime', key, value }
+      editing: null,      // { kind:'config'|'taskTime'|'secret', key, value, skipVerify? }
       busy: {},
       message: "",
       runPoll: null,
-      run: null
+      run: null,
+      backfill: null,     // 最近一次向量回填 { finished, exitCode, output }
+      backfillPoll: null
     };
 
     root.textContent = "";
@@ -827,6 +935,89 @@
       return wrap;
     }
 
+    function cfgDesc(k) {
+      var key = "cfgDesc_" + k;
+      return d[key] || "";
+    }
+
+    /**
+     * 一个表单行：标签（含键名与说明）+ 值 + 操作按钮。
+     * 为什么要表单而不是表格（0.13.0）：四项配置天然是「一个字段一行」，
+     * previewOrder / rulesOrder 这种键名对用户毫无意义，必须靠说明文字兜住，
+     * 而表格一行放不下「键名 + 说明 + 值 + 按钮」。
+     */
+    function formRow(key, valueNode, actions, opts) {
+      opts = opts || {};
+      var row = el("div", "lw-form-row");
+      var lab = el("div", "lw-form-label");
+      lab.appendChild(el("div", "lw-form-key", key));
+      var desc = opts.desc === undefined ? cfgDesc(key) : opts.desc;
+      if (desc) {
+        var ds = el("div", "lw-form-desc", desc);
+        lab.appendChild(ds);
+      }
+      row.appendChild(lab);
+      var val = el("div", "lw-form-value");
+      if (valueNode) val.appendChild(valueNode);
+      (actions || []).forEach(function (a) { if (a) val.appendChild(a); });
+      row.appendChild(val);
+      return row;
+    }
+
+    /** 生成一个受控输入框，输入同步进 state.editing.value */
+    function editInput(kind, key, initial, attrs) {
+      var input = document.createElement("input");
+      input.className = "lw-input";
+      Object.keys(attrs || {}).forEach(function (a) { input[a] = attrs[a]; });
+      input.value = String(initial == null ? "" : initial);
+      input.addEventListener("input", function () {
+        if (state.editing && state.editing.kind === kind && state.editing.key === key) {
+          state.editing.value = input.value;
+        }
+      });
+      return input;
+    }
+
+    /** 保存普通配置项（写 profile 的 cordis.patch.yml，需重启） */
+    function saveConfigKey(k) {
+      var val = state.editing ? state.editing.value : "";
+      state.busy["cfg:" + k] = true;
+      renderBody();
+      return request(base, "/api/config", { method: "POST", body: JSON.stringify({ key: k, value: val }) })
+        .then(function (r) {
+          delete state.busy["cfg:" + k];
+          state.editing = null;
+          if (r && r.ok) say(d.restartNeeded, "ok");
+          else say(errText(r), "warn");
+          refresh();
+        })
+        .catch(function (e) {
+          delete state.busy["cfg:" + k];
+          state.editing = null;
+          say(String(e && e.message ? e.message : e), "warn");
+          renderBody();
+        });
+    }
+
+    /**
+     * 把失败原因拼成一句话。用户明确要求：保存失败时把接口返回的
+     * code 与 message 原样显示，不能只报「保存失败」。
+     * 服务端已把 `HTTP 401 · code 30014 · Token is invalid.` 拼进 reason，
+     * 这里只补 HTTP 状态，避免重复。
+     */
+    function errText(r) {
+      if (!r) return d.error;
+      var reason = r.reason || "";
+      if (!reason) {
+        var bits = [];
+        if (r.status) bits.push("HTTP " + r.status);
+        if (r.apiCode) bits.push("code " + r.apiCode);
+        if (r.apiMessage) bits.push(r.apiMessage);
+        reason = bits.length ? bits.join(" · ") : d.error;
+      }
+      return reason;
+    }
+
     function renderConfig(box) {
       var data = state.data;
       if (!data) return;
@@ -834,63 +1025,66 @@
       var layers = data.layers || [];
       var drift = data.drift || [];
 
-      var rows = [];
+      // ---- 配置项（表单） ----
+      var formNodes = [];
       (data.configKeys || []).forEach(function (k) {
         var val = eff[k];
         var shown = typeof val === "boolean" ? (val ? "true" : "false") : String(val == null ? "" : val);
-        if (!matches(k) && !matches(shown)) return;
-        var valCell = el("div", "lw-val");
+        if (!matches(k) && !matches(shown) && !matches(cfgDesc(k))) return;
+
         if (state.editing && state.editing.kind === "config" && state.editing.key === k) {
-          var input = document.createElement("input");
-          input.className = "lw-input";
-          input.value = String(state.editing.value == null ? "" : state.editing.value);
-          input.addEventListener("input", function () { state.editing.value = input.value; });
-          valCell.appendChild(input);
+          var attrs = {};
+          if (k === "previewOrder" || k === "rulesOrder") { attrs.type = "number"; attrs.min = "0"; attrs.max = "999"; }
+          var input = editInput("config", k, state.editing.value, attrs);
           var save = el("button", "lw-btn is-primary lw-btn-sm", d.save);
           save.type = "button";
-          save.addEventListener("click", function () {
-            state.busy["cfg:" + k] = true;
-            renderBody();
-            request(base, "/api/config", { method: "POST", body: JSON.stringify({ key: k, value: state.editing.value }) })
-              .then(function (r) {
-                delete state.busy["cfg:" + k];
-                state.editing = null;
-                if (r && r.ok) say(d.restartNeeded, "ok");
-                else say((r && r.reason) || d.error, "warn");
-                refresh();
-              })
-              .catch(function (e) {
-                delete state.busy["cfg:" + k];
-                state.editing = null;
-                say(String(e && e.message ? e.message : e), "warn");
-                renderBody();
-              });
-          });
-          valCell.appendChild(save);
+          save.addEventListener("click", function () { saveConfigKey(k); });
           var cancel = el("button", "lw-btn lw-btn-sm", d.cancel);
           cancel.type = "button";
-          cancel.addEventListener("click", function () {
-            state.editing = null;
-            renderBody();
-          });
-          valCell.appendChild(cancel);
-        } else {
-          valCell.appendChild(el("code", "lw-code", shown === "" ? "—" : shown));
-          var edit = el("button", "lw-btn lw-btn-sm", d.edit);
-          edit.type = "button";
-          edit.disabled = !!state.busy["cfg:" + k];
-          edit.addEventListener("click", function () {
-            state.editing = { kind: "config", key: k, value: shown };
-            renderBody();
-          });
-          valCell.appendChild(edit);
+          cancel.addEventListener("click", function () { state.editing = null; renderBody(); });
+          formNodes.push(formRow(k, input, [state.busy["cfg:" + k] ? el("span", "lw-chip", d.saving) : save, cancel]));
+          return;
         }
-        rows.push([k, valCell]);
+
+        var code = el("code", "lw-code", shown === "" ? "—" : shown);
+        var edit = el("button", "lw-btn lw-btn-sm", d.edit);
+        edit.type = "button";
+        edit.disabled = !!state.busy["cfg:" + k];
+        edit.addEventListener("click", function () {
+          state.editing = { kind: "config", key: k, value: shown };
+          renderBody();
+        });
+        var acts = [code, edit];
+        if (k === "vault") {
+          // 打开目录：走 Host 侧 spawn（浏览器标签不能直接开资源管理器）
+          var openBtn = el("button", "lw-btn lw-btn-sm", d.openDir);
+          openBtn.type = "button";
+          openBtn.addEventListener("click", function () {
+            request(base, "/api/reveal", { method: "POST", body: JSON.stringify({ path: shown }) })
+              .then(function (r) {
+                if (!r || !r.ok) say(errText(r), "warn");
+              })
+              .catch(function (e) { say(String(e && e.message ? e.message : e), "warn"); });
+          });
+          acts.push(openBtn);
+        }
+        formNodes.push(formRow(k, acts[0], acts.slice(1)));
       });
 
-      box.appendChild(
-        card("gear", d.tabConfig, (data.profile || "") + " · " + d.reach, [table([d.key, d.value], rows)]),
-      );
+      var profileHint = (data.profile || "") + " · " + d.reach;
+      var form = el("div", "lw-form");
+      if (formNodes.length === 0) {
+        form.appendChild(el("div", "lw-empty", d.noData));
+      } else {
+        formNodes.forEach(function (n) { form.appendChild(n); });
+      }
+      box.appendChild(card("gear", d.cfgTitle, profileHint, [form]));
+
+      // ---- 凭据（只写不读） ----
+      renderSecrets(box, data);
+
+      // ---- 向量化状态 ----
+      renderEmbed(box, data);
 
       if (layers.length > 0) {
         var lrows = layers.map(function (l) {
@@ -912,6 +1106,245 @@
         box.appendChild(
           card("alert", d.drift, drift.length + " 项", [table([d.layer, d.key, "写入值", "生效值"], drows)], "lw-warn"),
         );
+      }
+    }
+
+    /** 凭据卡片：只显示「已配置 + 尾部 4 位」，输入框 type=password 只写不读 */
+    function renderSecrets(box, data) {
+      var secrets = data.secrets || {};
+      var items = secrets.items || [];
+      var nodes = [];
+
+      items.forEach(function (it) {
+        if (!matches(it.key) && !matches(it.service) && !matches(it.desc)) return;
+        var editing = state.editing && state.editing.kind === "secret" && state.editing.key === it.key;
+        var row = el("div", "lw-form-row");
+
+        var lab = el("div", "lw-form-label");
+        lab.appendChild(el("div", "lw-form-key", it.service + " · " + it.label));
+        lab.appendChild(el("div", "lw-form-desc", it.desc));
+        if (it.impact) {
+          var im = el("div", "lw-form-desc", d.secImpact + ": " + it.impact);
+          lab.appendChild(im);
+        }
+        row.appendChild(lab);
+
+        var val = el("div", "lw-form-value");
+
+        if (editing) {
+          var input = editInput("secret", it.key, state.editing.value, {
+            type: "password",
+            placeholder: d.secPlaceholder,
+            autocomplete: "off",
+            spellcheck: false
+          });
+          val.appendChild(input);
+
+          var skip = document.createElement("input");
+          skip.type = "checkbox";
+          skip.className = "lw-check";
+          skip.checked = state.editing.skipVerify === true;
+          skip.addEventListener("change", function () {
+            if (state.editing && state.editing.kind === "secret") state.editing.skipVerify = skip.checked;
+          });
+          var skipLab = el("label", "lw-check-label");
+          skipLab.appendChild(skip);
+          skipLab.appendChild(document.createTextNode(d.secSkipVerify));
+          val.appendChild(skipLab);
+
+          var saveBtn = el("button", "lw-btn is-primary lw-btn-sm", d.secSave);
+          saveBtn.type = "button";
+          saveBtn.addEventListener("click", function () { saveSecret(it.key); });
+          var cancelBtn = el("button", "lw-btn lw-btn-sm", d.secCancel);
+          cancelBtn.type = "button";
+          cancelBtn.addEventListener("click", function () { state.editing = null; renderBody(); });
+          val.appendChild(saveBtn);
+          val.appendChild(cancelBtn);
+          if (state.busy["sec:" + it.key]) val.appendChild(el("span", "lw-chip", d.secVerifying));
+
+          var hint = el("div", "lw-form-desc", d.secReadonlyHint);
+          val.appendChild(hint);
+        } else {
+          var chip = el("span", "lw-chip " + (it.configured ? "is-ok" : "is-warn"),
+            it.configured ? d.secConfigured : d.secMissing);
+          val.appendChild(chip);
+          if (it.configured && it.hint) val.appendChild(el("code", "lw-code", it.hint));
+
+          var setBtn = el("button", "lw-btn lw-btn-sm", it.configured ? d.secChange : d.secSet);
+          setBtn.type = "button";
+          setBtn.disabled = !!state.busy["sec:" + it.key];
+          setBtn.addEventListener("click", function () {
+            state.editing = { kind: "secret", key: it.key, value: "", skipVerify: false };
+            renderBody();
+          });
+          val.appendChild(setBtn);
+
+          if (it.configured) {
+            var clearBtn = el("button", "lw-btn lw-btn-sm is-danger", d.secClear);
+            clearBtn.type = "button";
+            clearBtn.disabled = !!state.busy["sec:" + it.key];
+            clearBtn.addEventListener("click", function () {
+              if (!window.confirm(d.secClearing.replace("{k}", it.key))) return;
+              state.busy["sec:" + it.key] = true;
+              renderBody();
+              request(base, "/api/secret", { method: "DELETE", body: JSON.stringify({ key: it.key }) })
+                .then(function (r) {
+                  delete state.busy["sec:" + it.key];
+                  if (r && r.ok) say(d.secCleared, "ok");
+                  else say(errText(r), "warn");
+                  refresh();
+                })
+                .catch(function (e) {
+                  delete state.busy["sec:" + it.key];
+                  say(String(e && e.message ? e.message : e), "warn");
+                  renderBody();
+                });
+            });
+            val.appendChild(clearBtn);
+          }
+        }
+        row.appendChild(val);
+        nodes.push(row);
+      });
+
+      var body = nodes.length ? nodes : [el("div", "lw-empty", d.noData)];
+      box.appendChild(card("key", d.secTitle, d.secHint, body));
+    }
+
+    /** 保存凭据：先验证，失败把 code/message 原样说出来 */
+    function saveSecret(k) {
+      var val = state.editing && state.editing.kind === "secret" ? String(state.editing.value || "") : "";
+      if (val.trim() === "") {
+        say(d.secEmpty, "warn");
+        return;
+      }
+      var skipVerify = !!(state.editing && state.editing.skipVerify);
+      state.busy["sec:" + k] = true;
+      renderBody();
+      request(base, "/api/secret", {
+        method: "POST",
+        body: JSON.stringify({ key: k, value: val, skipVerify: skipVerify })
+      })
+        .then(function (r) {
+          delete state.busy["sec:" + k];
+          if (r && r.ok) {
+            state.editing = null;
+            say(skipVerify ? d.secSavedNoRestart + "（" + d.secSkipVerify + "）" : d.secSavedNoRestart, "ok");
+          } else {
+            // 保留编辑态与输入内容，让用户能改一下再试
+            say(errText(r), "warn");
+          }
+          refresh();
+        })
+        .catch(function (e) {
+          delete state.busy["sec:" + k];
+          say(String(e && e.message ? e.message : e), "warn");
+          renderBody();
+        });
+    }
+
+    /** 向量化状态卡片：覆盖率 + 回填按钮 */
+    function renderEmbed(box, data) {
+      var e = data.embed || {};
+      if (!matches(d.embTitle) && !matches(JSON.stringify(e))) return;
+      var nodes = [];
+
+      if (!e.available) {
+        nodes.push(el("div", "lw-empty", (e.reason || d.noData)));
+        box.appendChild(card("spark", d.embTitle, d.embHint, nodes));
+        return;
+      }
+
+      var stats = el("div", "lw-stats");
+      stats.appendChild(statBox(d.embCoverage, String(e.coverage || (e.pct + "%"))));
+      stats.appendChild(statBox(d.embEmbedded, String(e.embedded) + " / " + String(e.total)));
+      if (e.model) stats.appendChild(statBox(d.embModel, e.model + (e.protocol ? " · " + e.protocol : "")));
+      nodes.push(stats);
+
+      // 覆盖率进度条
+      var bar = el("div", "lw-progress");
+      var fill = el("i");
+      fill.style.width = String(Math.max(0, Math.min(100, Number(e.pct || 0)))) + "%";
+      bar.appendChild(fill);
+      nodes.push(bar);
+
+      var row = el("div", "lw-form-value");
+      var chip = el("span", "lw-chip " + (e.keyConfigured ? "is-ok" : "is-warn"),
+        e.keyConfigured ? d.embReady : d.embNoKey);
+      row.appendChild(chip);
+
+      var bf = state.backfill || (data.embed && data.embed.backfill) || null;
+      var running = bf && !bf.finished;
+      var btn = el("button", "lw-btn lw-btn-sm" + (e.keyConfigured ? " is-primary" : ""), running ? d.embBackfilling : d.embBackfill);
+      btn.type = "button";
+      btn.disabled = running || !e.keyConfigured;
+      btn.addEventListener("click", function () { startBackfill(); });
+      row.appendChild(btn);
+
+      if (bf && bf.exitCode === 0 && bf.finished) row.appendChild(el("span", "lw-chip is-ok", d.embDone));
+      if (bf && bf.finished && bf.exitCode !== 0) row.appendChild(el("span", "lw-chip is-bad", "exit " + String(bf.exitCode)));
+      nodes.push(row);
+
+      if (e.pct < 100) nodes.push(el("div", "lw-form-desc", d.embWhy));
+
+      if (bf && bf.output && bf.output.length) {
+        var pre = el("pre", "lw-pre");
+        pre.textContent = bf.output.slice(-40).join("\n");
+        nodes.push(pre);
+      }
+
+      box.appendChild(card("spark", d.embTitle, d.embHint, nodes));
+    }
+
+    function statBox(label, value) {
+      var b = el("div", "lw-stat");
+      b.appendChild(el("div", "lw-stat-k", label));
+      b.appendChild(el("div", "lw-stat-v", value));
+      return b;
+    }
+
+    /** 触发回填：后台跑 mnemon embed --all，然后 1s 轮询直到结束 */
+    function startBackfill() {
+      request(base, "/api/embed", { method: "POST" })
+        .then(function (r) {
+          if (r && r.ok) {
+            state.backfill = { startedAt: Date.now(), finished: false, exitCode: null, output: [] };
+            say(d.embBackfilling, "ok");
+            pollBackfill();
+          } else {
+            say(errText(r), "warn");
+            renderBody();
+          }
+        })
+        .catch(function (e) {
+          say(String(e && e.message ? e.message : e), "warn");
+          renderBody();
+        });
+    }
+
+    function pollBackfill() {
+      stopBackfillPoll();
+      state.backfillPoll = setInterval(function () {
+        request(base, "/api/embed")
+          .then(function (r) {
+            if (!r || !r.ok) return;
+            state.backfill = r.backfill;
+            if (r.backfill && r.backfill.finished) {
+              stopBackfillPoll();
+              say(d.embDone, "ok");
+              refresh();
+              return;
+            }
+            renderBody();
+          })
+          .catch(function () { /* 轮询失败不打断，下一次再试 */ });
+      }, 1000);
+    }
+
+    function stopBackfillPoll() {
+      if (state.backfillPoll) {
+        clearInterval(state.backfillPoll);
+        state.backfillPoll = null;
       }
     }
 
@@ -1116,11 +1549,20 @@
 
     renderBody();
     refresh();
+    // 若上次有正在进行的回填（页面重开），接着轮询
+    request(base, "/api/embed").then(function (r) {
+      if (r && r.ok && r.backfill && !r.backfill.finished) {
+        state.backfill = r.backfill;
+        pollBackfill();
+        renderBody();
+      }
+    }).catch(function () {});
 
     return {
       refresh: refresh,
       destroy: function () {
         stopPoll();
+        stopBackfillPoll();
         try { root.textContent = ""; } catch (e) {}
       }
     };
