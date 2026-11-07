@@ -12,10 +12,11 @@
  *   漏掉 PROTOCOL 它会默认 ollama 去打 nomic-embed-text（本机没装）。
  *   本文件复刻 llm-wiki-pipeline.mjs 里 mnemonCli()/mnemonEnv() 的逻辑。
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 
 import { dshHome } from "./config.mjs";
 
@@ -143,7 +144,41 @@ export function readEmbedStatus() {
     ollamaAvailable: !!parsed.ollama_available,
     keyConfigured,
     reason: "",
+    ...readDbFootprint(),
   };
+}
+
+/**
+ * 记忆库的实际占用与可回收空间（ADR-0005）。
+ * 用户看到的「9 MB」里，活条目正文只占 2.4%，大头是空闲页 + 软删行留下的向量 + edges 索引，
+ * 所以面板必须把这三个数分开摆，否则「优化」就变成了删内容。
+ */
+export function readDbFootprint() {
+  const dbPath = join(process.env.MNEMON_DATA_DIR || join(homedir(), ".mnemon"), "data", "default", "mnemon.db");
+  if (!existsSync(dbPath)) return { dbPath: "", dbBytes: 0, dbHuman: "", freePct: 0, softDeleted: 0 };
+  let db;
+  try { db = new DatabaseSync(dbPath, { readOnly: true }); } catch { return { dbPath, dbBytes: 0, dbHuman: "", freePct: 0, softDeleted: 0 }; }
+  try {
+    const freelist = Number(db.prepare("PRAGMA freelist_count").get().freelist_count) || 0;
+    const pageCount = Number(db.prepare("PRAGMA page_count").get().page_count) || 0;
+    const softDeleted = Number(db.prepare("SELECT COUNT(*) c FROM insights WHERE deleted_at IS NOT NULL").get().c) || 0;
+    const bytes = statSync(dbPath).size;
+    return {
+      dbPath,
+      dbBytes: bytes,
+      dbHuman: humanBytes(bytes),
+      freePct: pageCount ? Math.round((freelist / pageCount) * 1000) / 10 : 0,
+      softDeleted,
+    };
+  } catch {
+    return { dbPath, dbBytes: 0, dbHuman: "", freePct: 0, softDeleted: 0 };
+  } finally { try { db.close(); } catch {} }
+}
+
+function humanBytes(n) {
+  if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(2) + " MB";
+  if (n >= 1024) return (n / 1024).toFixed(0) + " KB";
+  return n + " B";
 }
 
 /** 回填命令的参数（供 server.mjs 的 startRun 用） */

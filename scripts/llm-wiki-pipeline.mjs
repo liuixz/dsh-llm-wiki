@@ -36,8 +36,8 @@ const STALE_DAYS = 90;
 const rawArgs = process.argv.slice(2);
 const args = new Set(rawArgs);
 const DRY = args.has("--dry-run");
-const doAll = ![...args].some(a => ["--lint", "--index", "--sync", "--rate", "--usage", "--okf", "--prune-memory", "--dsh-export", "--docs-sync", "--reconcile", "--compile-patterns"].includes(a));
-const RUN = { lint: doAll || args.has("--lint"), index: doAll || args.has("--index"), sync: doAll || args.has("--sync"), usage: doAll || args.has("--usage"), okf: doAll || args.has("--okf"), compilePatterns: doAll || args.has("--compile-patterns"), prune: doAll || args.has("--prune-memory"), dsh: doAll || args.has("--dsh-export"), docs: doAll || args.has("--docs-sync") };
+const doAll = ![...args].some(a => ["--lint", "--index", "--sync", "--rate", "--usage", "--okf", "--prune-memory", "--dsh-export", "--docs-sync", "--reconcile", "--compile-patterns", "--compact"].includes(a));
+const RUN = { lint: doAll || args.has("--lint"), index: doAll || args.has("--index"), sync: doAll || args.has("--sync"), usage: doAll || args.has("--usage"), okf: doAll || args.has("--okf"), compilePatterns: doAll || args.has("--compile-patterns"), prune: doAll || args.has("--prune-memory"), dsh: doAll || args.has("--dsh-export"), docs: doAll || args.has("--docs-sync"), compact: args.has("--compact") };
 const RECONCILE_TARGET = rawArgs[rawArgs.indexOf("--reconcile") + 1];
 const DO_RECONCILE = args.has("--reconcile") && RECONCILE_TARGET;
 const RATE_TARGET = rawArgs[rawArgs.indexOf("--rate") + 1];
@@ -959,6 +959,40 @@ function splitLong(text, max) {
   if (cur) out.push(cur);
   return out;
 }
+/**
+ * 记忆分片正文清洗（ADR-0005）：只剥表格的视觉装饰，不动语义。
+ *
+ * 实测依据（222 条活记忆 / 134,890 字符）：竖线共 846 个，占正文 0.63‰，
+ * 含表格的只有 40 条。所以这一步省不了多少字节，价值在于**让分片能被直接读懂**——
+ * 记忆库里的条目是要被召回后喂给模型的，`| a | b |` 这种形状对阅读是纯噪声。
+ *
+ * 三条边界：
+ *  - 代码围栏（``` / ~~~）内一律不动，那段里的竖线是有意义的
+ *  - 表格分隔行 |---|---| 整行删掉
+ *  - `（来源: …）` 锚点不碰——回流与孤儿判定都靠它反解页面路径
+ */
+function cleanChunkText(text) {
+  const out = [];
+  let inFence = false;
+  for (const line of text.split("\n")) {
+    if (/^\s*(```|~~~)/.test(line)) { inFence = !inFence; out.push(line); continue; }
+    if (inFence) { out.push(line); continue; }
+    const t = line.trim();
+    // 分隔行：|---|:---:|---|
+    if (/^\|?[\s:|-]*-{2,}[\s:|-]*\|?$/.test(t) && /^[|\s:-]+$/.test(t)) continue;
+    // 表格行：| a | b |  ->  a · b
+    // 开头是竖线就按表格处理；结尾的竖线可能因为 splitLong 在 CHUNK_MAX 处截断而缺失，
+    // 所以只要求「以竖线开头」，不要求闭合。
+    if (t.startsWith("|")) {
+      const cells = t.replace(/^\|/, "").replace(/\|$/, "").split("|").map((s) => s.trim()).filter(Boolean);
+      if (cells.length) out.push(cells.join(" · "));
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /** 把一页拆成 H2 块；页面 frontmatter 里 recall: false 可退出同步。 */
 function chunkPage(p) {
   if (p.fm.status === "archived") return [];
@@ -998,7 +1032,7 @@ function chunkPage(p) {
     // 过滤早期 pi 会话批量导入的转储页：没有知识价值，只会污染召回
     if (/批量导入 — 来自|🤖 批量导入|自动编译自 \[\[raw\/sessions/.test(text)) continue;
     for (const piece of splitLong(text, CHUNK_MAX)) {
-      const bodyText = piece.trim();
+      const bodyText = cleanChunkText(piece.trim());
       if (bodyText.length < CHUNK_MIN) continue;
       const head = sec.heading ? "[" + title + "｜" + sec.heading + "] " : "[" + title + "] ";
       const source = p.rel + (sec.heading ? "#" + sec.heading : "");
@@ -1072,6 +1106,79 @@ async function ollamaAlive() {
     resolve(true);
   }).catch(() => false);
 }
+/**
+ * --compact：把 mnemon 记忆库的实际占用压下来（ADR-0005）。
+ *
+ * 实测（9.65 MB 的库）：
+ *  - freelist_count=560 → 2.29 MB 空闲页（24%），来自历史 forget/软删
+ *  - 软删但仍留着的 325 条，向量占 0.49 MB
+ *  - edges 的 6 个索引合计 3.03 MB（41%），是改不动的固有成本
+ *  - 活条目正文只有 0.23 MB（2.4%）
+ * 所以这里做两件无损的事：清掉软删行 → VACUUM。裁剪 entity 边会动召回，默认不做。
+ *
+ * LLM_WIKI_COMPACT_PRUNE_EDGES=1 才删「importance<4 的 entity 边」（实测再省 ~1.66 MB，
+ * 但自召回 20/20 → 19/20、5 次并集 Jaccard 0.577 → 0.516，属有损）。
+ */
+function compactMemory() {
+  const dbPath = join(process.env.MNEMON_DATA_DIR || join(homedir(), ".mnemon"), "data", "default", "mnemon.db");
+  if (!existsSync(dbPath)) return { error: "mnemon db 不存在: " + dbPath };
+  const before = statSync(dbPath).size;
+  let purgedInsights = 0, prunedEdges = 0, orphanEdges = 0;
+  let db;
+  try { db = new DatabaseSync(dbPath, { readOnly: false }); }
+  catch (e) { return { error: "无法打开 mnemon db: " + e.message }; }
+  try {
+    try { purgedInsights = Number(db.prepare("DELETE FROM insights WHERE deleted_at IS NOT NULL").run().changes) || 0; }
+    catch (e) { return { error: "清理软删失败: " + e.message }; }
+    // 软删清掉后，指向已不存在条目的边会成为悬空边（mnemon 没有外键级联）
+    try { orphanEdges = Number(db.prepare("DELETE FROM edges WHERE source_id NOT IN (SELECT id FROM insights) OR target_id NOT IN (SELECT id FROM insights)").run().changes) || 0; } catch {}
+    if (process.env.LLM_WIKI_COMPACT_PRUNE_EDGES === "1") {
+      try {
+        prunedEdges = Number(db.prepare("DELETE FROM edges WHERE edge_type=entity AND source_id IN (SELECT id FROM insights WHERE importance < 4)").run().changes) || 0;
+      } catch {}
+    }
+  } finally { try { db.close(); } catch {} }
+
+  // VACUUM 必须走 mnemon 官方入口：它自己知道 WAL 与连接状态，直接 SQLite VACUUM 在 WAL 模式下会失败
+  let vacuum = "skipped";
+  const cli = mnemonCli();
+  try {
+    const r = execFileSync(cli.command, ["gc", "--compact"], { timeout: 180000, env: mnemonEnv(), ...(cli.shell ? { shell: true } : {}) });
+    const out = String(r || "");
+    vacuum = out.trim() ? out.trim().slice(0, 200) : "ok";
+  } catch (e) { vacuum = "failed: " + String(e.message || e).slice(0, 120); }
+
+  const after = existsSync(dbPath) ? statSync(dbPath).size : before;
+  return {
+    bytesBefore: before, bytesAfter: after, savedBytes: before - after,
+    savedPct: before ? Math.round((before - after) / before * 1000) / 10 : 0,
+    purgedInsights, orphanEdges, ...(prunedEdges ? { prunedEdges } : {}), vacuum,
+  };
+}
+
+/**
+ * 自动压实：--all / --sync 跑完后按需回收空间（ADR-0005）。
+ *
+ * 只在**确实有东西可回收**时才动手：
+ *  - 空闲页占比 >= 15%（VACUUM 会把整个库重写一遍，白跑一次不值当）
+ *  - 或软删条目累计 >= 200 条
+ * 关掉：LLM_WIKI_COMPACT_AUTO=0
+ */
+function shouldAutoCompact(dbPath) {
+  if (process.env.LLM_WIKI_COMPACT_AUTO === "0") return null;
+  if (!existsSync(dbPath)) return null;
+  let db;
+  try { db = new DatabaseSync(dbPath, { readOnly: true }); } catch { return null; }
+  try {
+    const freelist = Number(db.prepare("PRAGMA freelist_count").get().freelist_count) || 0;
+    const pageCount = Number(db.prepare("PRAGMA page_count").get().page_count) || 0;
+    const softDeleted = Number(db.prepare("SELECT COUNT(*) c FROM insights WHERE deleted_at IS NOT NULL").get().c) || 0;
+    const freePct = pageCount ? freelist / pageCount : 0;
+    if (freePct >= 0.15 || softDeleted >= 200) return { freePct: Math.round(freePct * 1000) / 10, softDeleted };
+    return null;
+  } catch { return null; } finally { try { db.close(); } catch {} }
+}
+
 async function syncMemory(pages) {
   const syncPages = pages.filter(shouldSyncPage);
   const state = loadState();
@@ -1385,6 +1492,25 @@ async function body() {
       const r = await syncMemory(pages);
       console.log("同步:", JSON.stringify(r));
       summary.push("sync:" + (r.synced || 0) + "条" + (r.error ? " ERR:" + r.error : ""));
+    }
+  }
+  if (RUN.compact) {
+    console.log("\n== compact ==");
+    if (DRY) console.log("(--dry-run) 将清理软删条目并 VACUUM 记忆库");
+    else {
+      const r = compactMemory();
+      console.log("压实:", JSON.stringify(r));
+      summary.push(r.error ? "compact:ERR" : ("compact:" + (r.savedPct || 0) + "%"));
+    }
+  } else if (RUN.sync && !DRY) {
+    // 自动压实：同步完顺带看一眼有没有值得回收的空闲页（阈值与开关见 shouldAutoCompact）
+    const dbPath = join(process.env.MNEMON_DATA_DIR || join(homedir(), ".mnemon"), "data", "default", "mnemon.db");
+    const why = shouldAutoCompact(dbPath);
+    if (why) {
+      console.log("\n== auto compact == 空闲页 " + why.freePct + "%、软删 " + why.softDeleted + " 条");
+      const r = compactMemory();
+      console.log("压实:", JSON.stringify(r));
+      summary.push(r.error ? "compact:ERR" : ("compact:" + (r.savedPct || 0) + "%"));
     }
   }
   if (!DRY) appendLog(summary.join(" | "));

@@ -43,6 +43,7 @@ export const RUN_COMMANDS = [
   { id: "index", label: "重建索引", args: ["--index"], hint: "wiki/index.md 与分类索引页" },
   { id: "sync", label: "同步记忆", args: ["--sync"], hint: "写入 mnemon 向量库" },
   { id: "health", label: "体检", args: ["--health"], hint: "pipeline-health.mjs 健康快照" },
+  { id: "compact", label: "压实记忆库", args: ["--compact"], hint: "清软删条目 + VACUUM，实测可省 51%" },
 ];
 
 /** 当前这次由面板拉起的运行（内存里，进程重启即丢） */

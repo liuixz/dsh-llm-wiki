@@ -367,7 +367,8 @@
     lock: '<rect x="3.6" y="7" width="8.8" height="6.3" rx="1.4"/><path d="M5.9 7V5.4a2.1 2.1 0 0 1 4.2 0V7"/>',
     queue: '<path d="M3 5h10M3 8h10M3 11h6.5"/>',
     power: '<path d="M8 2.6v5"/><path d="M5.1 4.5a4.6 4.6 0 1 0 5.8 0"/>',
-    terminal: '<rect x="2.4" y="3.4" width="11.2" height="9.2" rx="1.5"/><path d="M4.9 7 6.6 8.6 4.9 10.2M8.3 10.4h2.8"/>'
+    terminal: '<rect x="2.4" y="3.4" width="11.2" height="9.2" rx="1.5"/><path d="M4.9 7 6.6 8.6 4.9 10.2M8.3 10.4h2.8"/>',
+    db: '<ellipse cx="8" cy="4.2" rx="5.2" ry="2.1"/><path d="M2.8 4.2v7.4c0 1.2 2.3 2.1 5.2 2.1s5.2-.9 5.2-2.1V4.2"/><path d="M2.8 7.9c0 1.2 2.3 2.1 5.2 2.1s5.2-.9 5.2-2.1"/>'
   };
 
   function icon(name) {
@@ -478,7 +479,18 @@
       embDone: "回填完成",
       embRound: "第 {n} 轮",
       embHint: "配好凭据不等于有向量：历史条目需要单独回填一次",
-      embWhy: "sync 只导入新内容或改过的页面；hash 未变的历史条目不会重导，向量要单独回填。mnemon 每轮最多处理 100 条，面板会自动接着跑下一轮。"
+      embWhy: "sync 只导入新内容或改过的页面；hash 未变的历史条目不会重导，向量要单独回填。mnemon 每轮最多处理 100 条，面板会自动接着跑下一轮。",
+      /* --- 存储占用 --- */
+      dbTitle: "存储占用",
+      dbSize: "库文件",
+      dbFree: "空闲页",
+      dbSoft: "待清理条目",
+      dbHint: "记忆库的实际占用；活条目正文只占其中一小部分",
+      dbWhy: "空闲页与软删条目是历史 forget 留下的，没被回收。点「压实记忆库」清掉软删并 VACUUM，实测可省一半空间，且不影响任何活条目。",
+      dbCompact: "压实记忆库",
+      dbCompacting: "压实中…",
+      dbClean: "无需压实",
+      dbSaved: "压实完成，省了 {pct}%"
     },
     en: {
       title: "LLM-Wiki Admin",
@@ -575,7 +587,18 @@
       embDone: "Backfill finished",
       embRound: "Round {n}",
       embHint: "A credential does not create embeddings: existing entries need one backfill",
-      embWhy: "sync only imports new or changed pages; entries whose hash is unchanged are not reimported, so their vectors need a separate backfill. mnemon handles at most 100 entries per round; the panel keeps going automatically."
+      embWhy: "sync only imports new or changed pages; entries whose hash is unchanged are not reimported, so their vectors need a separate backfill. mnemon handles at most 100 entries per round; the panel keeps going automatically.",
+      /* --- storage footprint --- */
+      dbTitle: "Storage footprint",
+      dbSize: "Database",
+      dbFree: "Free pages",
+      dbSoft: "Pending purge",
+      dbHint: "Actual size of the memory database; the live entries' text is only a small part of it",
+      dbWhy: "Free pages and soft-deleted rows are leftovers from past forgets. Compact purges them and vacuums the database — measured at roughly half the space, with no live entry touched.",
+      dbCompact: "Compact database",
+      dbCompacting: "Compacting…",
+      dbClean: "Nothing to compact",
+      dbSaved: "Compacted, saved {pct}%"
     }
   };
 
@@ -1088,6 +1111,9 @@
       // ---- 向量化状态 ----
       renderEmbed(box, data);
 
+      // ---- 存储占用 ----
+      renderStorage(box, data);
+
       if (layers.length > 0) {
         var lrows = layers.map(function (l) {
           var badge = l.id === "profile" ? d.reach : d.readOnly;
@@ -1303,6 +1329,43 @@
       }
 
       box.appendChild(card("spark", d.embTitle, d.embHint, nodes));
+    }
+
+    /** 存储占用：把「库有多大」和「能回收多少」分开摆，避免用户以为优化等于删内容 */
+    function renderStorage(box, data) {
+      var e = data.embed || {};
+      if (!matches(d.dbTitle)) return;
+      var nodes = [];
+
+      var stats = el("div", "lw-stats");
+      stats.appendChild(statBox(d.dbSize, e.dbHuman || "—"));
+      stats.appendChild(statBox(d.dbFree, (Number(e.freePct || 0)) + "%"));
+      stats.appendChild(statBox(d.dbSoft, String(Number(e.softDeleted || 0))));
+      nodes.push(stats);
+
+      var needCompact = Number(e.freePct || 0) >= 5 || Number(e.softDeleted || 0) > 0;
+      var run = state.run || null;
+      var compacting = !!(run && run.command === "compact" && run.running);
+
+      var row = el("div", "lw-form-value");
+      var btn = el("button", "lw-btn lw-btn-sm" + (needCompact ? " is-primary" : ""),
+        compacting ? d.dbCompacting : d.dbCompact);
+      btn.type = "button";
+      btn.disabled = compacting || !needCompact;
+      btn.addEventListener("click", function () {
+        request(base, "/api/run", { method: "POST", body: JSON.stringify({ command: "compact", by: "panel" }) })
+          .then(function (r) {
+            if (r && r.ok) { say(d.dbCompacting, "ok"); state.tab = "config"; refresh(); }
+            else say(errText(r), "warn");
+          })
+          .catch(function (err) { say(String(err && err.message || err), "warn"); });
+      });
+      row.appendChild(btn);
+      if (!needCompact) row.appendChild(el("span", "lw-chip is-ok", d.dbClean));
+      nodes.push(row);
+
+      nodes.push(el("div", "lw-form-desc", d.dbWhy));
+      box.appendChild(card("db", d.dbTitle, d.dbHint, nodes));
     }
 
     function statBox(label, value) {

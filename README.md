@@ -123,10 +123,11 @@ dsh plugin --profile desktop add github:iwtown/dsh-llm-wiki
 | 配置项 | 表单式布局，每项带用途说明。改 `vault`（可「打开目录」）/ `previewOrder` / `rulesOrder` / `mainAgentOnly`（只写 profile 的 `cordis.patch.yml`，写完提示重启）；同时显示各层配置的生效值与漂移 |
 | 凭据 | 填 / 换 / 清 `SF_API_KEY`（硅基流动，用于记忆体向量化与会话语义索引）。**只写不读**：界面只显示 `sk-…8gOE0`，明文不进浏览器；保存前先打一次真实 `POST /v1/embeddings` 验证，失败原样显示 `HTTP 401 · code 30014 · Token is invalid.`；写进 `~/.dsh/.credentials.yaml`，**无需重启**，下一次管线运行即生效 |
 | 向量化状态 | 覆盖率 / 已向量化 M/T / 模型 + 覆盖率条。配了 key 但覆盖率仍是 0% 时给出原因，并提供「回填向量」按钮（`mnemon embed --all`，走同一把锁，1s 轮询输出） |
+| 存储占用 | 记忆库文件大小 / 空闲页占比 / 待清理条目数，加「压实记忆库」按钮（`--compact`）。这三项才是库变大的主因——活条目正文通常只占百分之几；空闲页 < 5% 且无软删时按钮置灰显示「无需压实」 |
 | 计划任务 | 看五个任务的启用状态 / 上次结果 / 下次运行；启用、停用、改触发时刻（非 Windows 只读展示） |
 | 运行历史 | `log.md` 条目 + `reports/health/health-YYYY-MM.csv` 趋势（每行带与上一行的 Δ 环比） |
 
-顶部一个搜索框过滤各张表；五个运行按钮跑管线；运行中 1s 轮询输出，跑完自动停。
+顶部一个搜索框过滤各张表；六个运行按钮跑管线；运行中 1s 轮询输出，跑完自动停。
 
 **凭据的边界**：三个凭据接口（`GET/POST/DELETE /api/secret`）与 `POST /api/reveal` 只接受回环来源（`127.0.0.1` / `::1`），其它来源 403。其余接口不含密级数据，不加限制。
 
@@ -149,6 +150,7 @@ dsh plugin --profile desktop add github:iwtown/dsh-llm-wiki
 | `--docs-sync` | mnemon Documents → wiki |
 | `--dsh-export` | DSH 会话 → `raw/sessions/dsh/` |
 | `--prune-memory` | 清理来源已消失的块 |
+| `--compact` | 压实记忆库：删软删条目 → 删悬空边 → `mnemon gc --compact`（不进 `--all`，实测省 51%） |
 | `--reconcile` | 邻域调和报告（只读，可开 LLM） |
 | `--rate <页> --rating useful\|outdated` | 质量反馈 |
 | `--all` / `--all --dry-run` | 全量 / 预览 |
@@ -259,6 +261,7 @@ dsh-llm-wiki/
 
 ## 版本
 
+- `0.13.3`：记忆库存储占用优化。实测纠正了「竖线占空间」的假设——222 条活记忆里竖线共 846 个，只占正文 0.63‰，全删光省不到 0.1%；9.65 MB 里真正的大头是**空闲页 24% + `edges` 六个索引 31% + 软删条目向量 5.1%**，活条目正文只占 2.4%。新增 `--compact` 子命令（删软删条目 → 删悬空边 → `mnemon gc --compact`，VACUUM 必须走官方入口否则 WAL 下失败），副本库实测 `9.65 MB → 4.68 MB`（**−51.5%**）且活条目一条没少、`integrity_check` = ok；不进 `--all`（避免每日管线无条件改写 9 MB 库），改由 `--sync` 后 `shouldAutoCompact()` 按「空闲页 ≥ 15% 或软删 ≥ 200」触发，`LLM_WIKI_COMPACT_AUTO=0` 可关。有损分支 `LLM_WIKI_COMPACT_PRUNE_EDGES=1` 再裁 `importance<4` 的 entity 边可累计省 69%，但召回掉 13%，默认关闭。另新增 `cleanChunkText()`：代码围栏不动、`|---|` 分隔行整行删、竖线行转 `a · b`、空行折叠、`（来源: …）` 锚点不碰——字符 −0.79%、竖线 −85%，省不出空间但片段可读。面板新增「存储占用」卡片与「压实记忆库」按钮（干净库置灰）。决策记入 `docs/adr/0005-memory-footprint.md`。
 - `0.13.2`：修掉「改计划任务时间必报错」。三层原因：①`schtasks /Create` 建的任务 `Description` 是 `$null`，而 `Register-ScheduledTask -Description` 带 `[ValidateNotNullOrEmpty]`，参数绑定阶段就抛「无法对参数 Description 执行参数验证」；②`$t.Triggers[0].DaysOfWeek` 是 **UInt16 位掩码**（周日=1、周一=2、周二=4…）不是枚举序号，直接传给 `-DaysOfWeek` 会让星期每次保存往后漂一天（实测 `1→2→4`）；③`powershell.exe` 按系统代码页（936/GBK）写管道，而 JS 按 utf8 解码，中文报错全变乱码。改法：描述空则回退到任务定义里的中文描述、掩码按位展开成枚举名数组、`-EncodedCommand` 前缀显式设 `[Console]::OutputEncoding` 为 UTF-8，并补 `-Principal $t.Principal` 保证登录身份不被重置。真机验证 daily/weekly 改时间、二次修改不漂移、非法时间被拒、还原后五个任务 `State=Ready` 且掩码与时间与改前一致。
 - `0.13.1`：修掉「点了回填向量，覆盖率几乎没动」。根因是 `mnemon embed --all` **单轮最多处理 100 条**——exit 0、`status: backfill_complete`、`failed: 0`，看起来全完了，实际库里 341 条只做了 100 条；`mnemon` 也没提供可调上限的参数。`startBackfill()` 改为循环跑到收敛：每轮结束比对 `embedded` 增量，有进展且未满 → 自动下一轮，满了 → `回填完成：X / Y（Z%）`，**一轮零新增或非 0 退出 → 停止**（防死循环）。整轮只持一次锁。界面显示「第 N 轮 · M / T」。端到端实测 206 → 300（第 1 轮）→ 341/341 = 100%（第 2 轮，13 秒），数据库直查 `有向量=341`、`1024维=341`。
 - `0.13.0`：面板新增**凭据管理与向量化状态**，配置项改为表单式布局。① 新增 `SF_API_KEY` 凭据卡片：**只写不读**，界面只显示 `sk-…8gOE0`，明文不进 `/api/state`；保存前先打一次真实 `POST /v1/embeddings`（`BAAI/bge-m3`）验证，失败原样透出 `HTTP 401 · code 30014 · Token is invalid.` 而非笼统「保存失败」；可「跳过验证」落盘（断网用）；清除是整行删键不是写空串；三个凭据接口与 `POST /api/reveal` 限回环来源，非回环 403；写 `~/.dsh/.credentials.yaml`，**无需重启**（下一次管线运行即生效，与配置项不同）。② 新增「向量化状态」块：覆盖率 / 已向量化 M/T / 模型 + 覆盖率条；覆盖率为 0% 时说明原因，并提供「回填向量」按钮（`mnemon embed --all`，走同一把锁，1s 轮询）。③ 配置项重写为表单布局，每项带用途说明，数字项用 `number` 输入、`vault` 带「打开目录」。决策记入 `docs/adr/0004-secret-config.md`，术语补「配置项 / 凭据 / 向量化覆盖率」。临时探针验证 63 + 37 项全过。
