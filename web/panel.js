@@ -31,7 +31,11 @@
   --lw-mono:var(--font-mono,ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace);
   --lw-fg:var(--dsw-alias-label-primary,var(--foreground,#1f2328));
   --lw-fg-2:var(--dsw-alias-label-secondary,var(--muted-foreground,#5b636c));
-  --lw-fg-3:var(--dsw-alias-label-tertiary,var(--muted-foreground,#7d8590));
+  /* 回退色从 #7d8590 改成 #667085：前者在白底只有 3.73:1，而这一档被
+     .lw-sub / .lw-card-hint / .lw-form-desc / .lw-empty / .lw-stat-k 这些
+     11–12px 小字大量使用，低于 WCAG AA 的 4.5:1。#667085 实测 4.97:1
+     （白）/ 4.60:1（--lw-bg-2）。DSH 主题在时仍以 --dsw-alias-label-tertiary 为准。 */
+  --lw-fg-3:var(--dsw-alias-label-tertiary,var(--muted-foreground,#667085));
   /* 之前 .lw-table-wrap 的滚动条 hover 引用了 --lw-fg-4 却从未定义 → 那条规则静默失效。
      补上并回退到 --lw-fg-3，保证任何主题下都有值。 */
   --lw-fg-4:var(--dsw-alias-label-quaternary,var(--lw-fg-3));
@@ -51,15 +55,14 @@
   --lw-bad:var(--dsw-alias-state-error-primary,var(--destructive,#cf222e));
   --lw-r-sm:calc(var(--radius,.625rem) - 4px);
   --lw-r-md:var(--radius,.625rem);
-  --lw-r-lg:calc(var(--radius,.625rem) + 4px);
   --lw-shadow-1:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);
-  --lw-shadow-2:0 4px 12px rgba(16,24,40,.08),0 1px 3px rgba(16,24,40,.06);
 }
 @media (prefers-color-scheme:dark){
   .llmwiki-panel{
     --lw-fg:var(--dsw-alias-label-primary,var(--foreground,#e6edf3));
     --lw-fg-2:var(--dsw-alias-label-secondary,var(--muted-foreground,#9aa4af));
-    --lw-fg-3:var(--dsw-alias-label-tertiary,var(--muted-foreground,#7d8590));
+    /* 深色下 #7d8590 在 --lw-bg-2(#1c2128) 上只有 4.34:1，同样不到 AA。#8b949e 实测 5.26:1。 */
+    --lw-fg-3:var(--dsw-alias-label-tertiary,var(--muted-foreground,#8b949e));
     --lw-bg:var(--dsw-alias-bg-base,var(--background,#0d1117));
     --lw-bg-1:var(--dsw-alias-bg-layer-1,var(--card,#161b22));
     --lw-bg-2:var(--dsw-alias-bg-layer-2,var(--muted,#1c2128));
@@ -75,7 +78,6 @@
     --lw-warn:var(--dsw-alias-state-warn-primary,#d29922);
     --lw-bad:var(--dsw-alias-state-error-primary,var(--destructive,#f85149));
     --lw-shadow-1:0 1px 2px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.3);
-    --lw-shadow-2:0 6px 16px rgba(0,0,0,.45),0 1px 3px rgba(0,0,0,.3);
   }
 }
 
@@ -110,6 +112,9 @@
 .lw-dot.is-warn{background:var(--lw-warn);}
 .lw-dot.is-bad{background:var(--lw-bad);}
 @keyframes lw-pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 color-mix(in srgb,var(--lw-brand) 50%,transparent);}50%{opacity:.6;box-shadow:0 0 0 4px transparent;}}
+/* 刷新中的旋转。刷新此前毫无反馈：点了按钮，页面在旧数据上静默等几秒。 */
+@keyframes lw-spin{to{transform:rotate(360deg);}}
+.lw-btn.is-spinning .lw-ico{animation:lw-spin .9s linear infinite;}
 
 /* ---- 工具行 ---- */
 .lw-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -147,6 +152,12 @@
 .lw-btn.is-primary .lw-ico{opacity:1;}
 .lw-btn.is-danger{color:var(--lw-bad);border-color:color-mix(in srgb,var(--lw-bad) 40%,var(--lw-border));background:transparent;}
 .lw-btn.is-danger:hover:not(:disabled){background:color-mix(in srgb,var(--lw-bad) 10%,transparent);border-color:var(--lw-bad);}
+/* 开关的「开」态：不抢主按钮的实心蓝，只给描边 + 淡底 */
+.lw-btn.is-on{
+  color:var(--lw-brand);border-color:var(--lw-brand);
+  background:color-mix(in srgb,var(--lw-brand) 10%,transparent);
+}
+.lw-btn.is-on:hover:not(:disabled){background:color-mix(in srgb,var(--lw-brand) 16%,transparent);border-color:var(--lw-brand);}
 .lw-btn-sm{height:24px;padding:0 8px;font-size:11.5px;}
 .lw-btn-icon{width:30px;height:30px;padding:0;}
 .lw-ico{display:inline-flex;align-items:center;justify-content:center;flex:none;}
@@ -265,6 +276,9 @@
 
 /* ---- 单元格元件 ---- */
 .lw-val{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;}
+/* 计划时间（「每日 08:50」）与紧跟的「改」按钮：gap 只有 6px 且文字 span 无内边距，
+   截图上两者糊成一串。给按钮一点左外边距把「值」和「动作」分开。 */
+.lw-val > .lw-btn:not(:first-child){margin-left:2px;}
 .lw-code{
   font-family:var(--lw-mono);font-size:11.5px;line-height:1.5;
   padding:1px 6px;border-radius:calc(var(--lw-r-sm) - 2px);
@@ -310,13 +324,15 @@
 .lw-cmdhelp-hint{flex:1 1 auto;min-width:0;color:var(--lw-fg-3);line-height:1.5;}
 
 /* ---- 趋势条 ---- */
-.lw-trend{display:flex;align-items:center;gap:8px;min-width:120px;}
+.lw-trend{display:flex;align-items:center;gap:10px;min-width:120px;}
 .lw-bar-cell{position:relative;flex:1 1 auto;height:6px;min-width:56px;background:var(--lw-bg-2);border-radius:999px;overflow:hidden;}
 .lw-bar-cell i{display:block;height:100%;border-radius:999px;background:var(--lw-brand);transition:width .3s ease;}
 .lw-pct{font-family:var(--lw-mono);font-size:11px;color:var(--lw-fg-3);flex:none;}
 .lw-delta{font-family:var(--lw-mono);font-size:11px;color:var(--lw-fg-3);}
 .lw-delta.is-up{color:var(--lw-ok);}
 .lw-delta.is-down{color:var(--lw-bad);}
+/* 历史页「其它指标」：次要信息用次要色 */
+.lw-note{font-size:11.5px;color:var(--lw-fg-3);}
 
 /* ---- 表单（0.13.0 配置项与凭据共用） ---- */
 .lw-form{display:flex;flex-direction:column;}
@@ -354,6 +370,10 @@
 .lw-foot-title{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;}
 .lw-foot-title .lw-ico{color:var(--lw-fg-3);}
 .lw-foot-head .lw-chip{margin-left:auto;}
+/* 运行开始时间：靠右、等宽、次要色。紧跟其后的退出码胶囊不再需要 auto，
+   否则两者之间会被撑开一大段空白。 */
+.lw-foot-time{margin-left:auto;font-family:var(--lw-mono);font-size:11px;color:var(--lw-fg-3);}
+.lw-foot-time + .lw-chip{margin-left:0;}
 .lw-pre{
   margin:0;max-height:260px;overflow:auto;padding:12px 14px;
   font-family:var(--lw-mono);font-size:11.5px;line-height:1.5;
@@ -370,6 +390,13 @@
 .llmwiki-panel.is-compact .lw-tabs{align-self:stretch;justify-content:space-between;}
 .llmwiki-panel.is-compact .lw-tab{flex:1 1 auto;justify-content:center;padding:0 6px;}
 .llmwiki-panel.is-compact .lw-tab .lw-ico{display:none;}
+/* 窄容器 = 很可能是触屏或半屏窗口。桌面档 28/24px 的按钮在手指下太薄，
+   紧凑档统一抬到 32/28px（仍低于 44pt，但已是窄屏里不牺牲信息量的上限）。 */
+.llmwiki-panel.is-compact .lw-btn{height:32px;padding:0 12px;}
+.llmwiki-panel.is-compact .lw-btn-sm{height:28px;padding:0 10px;}
+.llmwiki-panel.is-compact .lw-btn-icon{width:32px;height:32px;padding:0;}
+.llmwiki-panel.is-compact .lw-tab{height:32px;}
+.llmwiki-panel.is-compact .lw-search{height:34px;}
 .llmwiki-panel.is-compact .lw-card-head{padding:9px 12px;}
 .llmwiki-panel.is-compact .lw-card-hint{display:none;}
 .llmwiki-panel.is-compact .lw-stack{gap:10px;}
@@ -585,6 +612,7 @@
       facts: "指标",
       allNormal: "记录里没有异常",
       noMatch: "没有匹配的内容",
+      filtered: "已按搜索过滤",
       /* --- 无障碍（P3） --- */
       ariaTabs: "分区",
       ariaHealth: "知识库健康状态",
@@ -723,6 +751,7 @@
       facts: "Facts",
       allNormal: "No issues in the recorded history",
       noMatch: "Nothing matches the filter",
+      filtered: "Filtered out by search",
       /* --- a11y (P3) --- */
       ariaTabs: "Sections",
       ariaHealth: "Knowledge base health status",
@@ -752,6 +781,23 @@
     } catch (e) {
       return String(ms);
     }
+  }
+
+  /**
+   * 把 PowerShell 的本地化时间串归一成页面统一风格。
+   * tasks.mjs 里 `[string]$i.LastRunTime` 走系统区域设置，中文 Windows 上是
+   * `10/31/2026 02:50:50`，而面板其它日期都是 `2026-11-07`——同一张表里两种
+   * 日期格式并存，读的人要先猜哪一段是月。解析失败就原样返回，不吞信息。
+   */
+  function fmtLocal(s) {
+    var m = String(s || "").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (!m) return s == null ? "" : String(s);
+    var p = function (n) { return String(n).padStart(2, "0"); };
+    var h = Number(m[4]);
+    var ap = (m[7] || "").toUpperCase();
+    if (ap === "PM" && h < 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    return m[3] + "-" + p(m[1]) + "-" + p(m[2]) + " " + p(h) + ":" + m[5];
   }
 
   function request(base, path, opts) {
@@ -885,6 +931,16 @@
       state.query = search.value.trim().toLowerCase();
       renderBody();
     });
+    // Esc 清空搜索：搜索框是全页唯一一个「输入即过滤」的地方，
+    // 用户打完字想回到全量视图，此前只能一个个删字符。
+    search.addEventListener("keydown", function (ev) {
+      if (!ev || (ev.key !== "Escape" && ev.key !== "Esc")) return;
+      if (!search.value) return;
+      search.value = "";
+      state.query = "";
+      renderBody();
+      ev.stopPropagation();
+    });
     searchWrap.appendChild(search);
     bar.appendChild(searchWrap);
 
@@ -964,11 +1020,20 @@
       } else if (lock && !lock.stale) {
         statusText.textContent = d.lockHeld + " · pid " + lock.pid;
         tone = "is-warn";
+      } else if (state.loading && state.data) {
+        // 刷新期间此前毫无反馈：旧数据照旧显示，没有任何东西说明「正在取新数据」。
+        statusText.textContent = d.loading;
+        tone = "is-run";
       } else {
         statusText.textContent = d.idle;
         tone = "is-ok";
       }
       statusDot.className = "lw-dot " + tone;
+      // 刷新按钮自己也表态：转起来 + 禁用，避免连点发出多次请求
+      if (btnRefresh) {
+        btnRefresh.classList.toggle("is-spinning", !!state.loading);
+        btnRefresh.disabled = !!state.loading;
+      }
     }
 
     /**
@@ -1170,9 +1235,11 @@
         runBar.appendChild(b);
       });
 
-      // 命令说明开关：把 title 里的说明搬到可见位置
+      // 命令说明开关：把 title 里的说明搬到可见位置。
+      // 展开态此前用 is-primary —— 同屏就有「全量」一个蓝主按钮，第二个蓝块让
+      // 主次彻底失效。改用 is-on（浅底 + 品牌色描边），表达「这个开关开着」。
       if (cmds.length > 0) {
-        var helpBtn = el("button", "lw-btn lw-btn-sm" + (state.helpOpen ? " is-primary" : ""), "?");
+        var helpBtn = el("button", "lw-btn lw-btn-sm" + (state.helpOpen ? " is-on" : ""), "?");
         helpBtn.type = "button";
         helpBtn.title = d.cmdHelp;
         helpBtn.setAttribute("aria-label", d.cmdHelp);
@@ -1257,6 +1324,10 @@
       ft.appendChild(icon("terminal"));
       ft.appendChild(document.createTextNode(d.output + " · " + String(run.command || "")));
       h.appendChild(ft);
+      // fmtTime 此前只有定义、零调用（死代码）。输出面板只说「跑了什么」「退出码」，
+      // 不说「什么时候开始的」——长时间运行（视频/全量重建）里这条信息是刚需。
+      var startedAt = fmtTime(run.startedAt);
+      if (startedAt) h.appendChild(el("span", "lw-foot-time", startedAt));
       if (run.finished) h.appendChild(el("span", "lw-chip" + (run.exitCode === 0 ? " is-ok" : " is-bad"), "exit " + String(run.exitCode)));
       foot.appendChild(h);
       var pre = el("pre", "lw-pre");
@@ -1537,7 +1608,11 @@
           var tone = l.id === "profile" ? "is-ok" : "";
           if (!l.exists) tone = "is-warn";
           return [l.id, l.label, el("code", "lw-code", l.path), el("span", "lw-chip " + tone, badge)];
-        }).filter(function (r) { return matches(r.join(" ")); });
+        }).filter(function (r) {
+          // 原来写 r.join(" ")，但 r 里有两个 DOM 节点 → join 出来是
+          // "[object HTMLSpanElement]"，按状态文字（如「不存在」「只读」）搜永远不命中。
+          return matches(r.map(function (x) { return (x && x.textContent) || x; }).join(" "));
+        });
         box.appendChild(card("", d.layer, "", [table(["id", d.layer, "path", "status"], lrows)]));
       }
 
@@ -1724,7 +1799,11 @@
     /** 向量化状态卡片：覆盖率 + 回填按钮 */
     function renderEmbed(box, data) {
       var e = data.embed || {};
-      if (!matches(d.embTitle) && !matches(JSON.stringify(e))) return;
+      // 搜索无匹配时整卡消失，用户会以为卡片被删了。改成留一张「已过滤」的空态。
+      if (!matches(d.embTitle) && !matches(JSON.stringify(e))) {
+        box.appendChild(card("spark", d.embTitle, "", [el("div", "lw-empty", d.filtered)]));
+        return;
+      }
       var nodes = [];
 
       if (!e.available) {
@@ -1788,7 +1867,10 @@
     /** 存储占用：把「库有多大」和「能回收多少」分开摆，避免用户以为优化等于删内容 */
     function renderStorage(box, data) {
       var e = data.embed || {};
-      if (!matches(d.dbTitle)) return;
+      if (!matches(d.dbTitle)) {
+        box.appendChild(card("db", d.dbTitle, "", [el("div", "lw-empty", d.filtered)]));
+        return;
+      }
       var nodes = [];
 
       var stats = el("div", "lw-stats");
@@ -1995,7 +2077,7 @@
         if (task.exists && !task.enabled) rc = "is-off";
         else if (task.exists && task.lastResultText && !/^成功/.test(String(task.lastResultText))) rc = "is-stale";
 
-        return { cells: [nameCell, stateCell, timeCell, task.lastRun || "—", resultChip, nextCell, actCell], rc: rc };
+        return { cells: [nameCell, stateCell, timeCell, task.lastRun ? fmtLocal(task.lastRun) : "—", resultChip, nextCell, actCell], rc: rc };
       }).filter(function (r) {
         var c = r.cells;
         return matches([c[0].textContent, c[1].textContent, c[3], c[4].textContent, c[5].textContent].join(" "));
@@ -2119,7 +2201,8 @@
         });
         var issues = entryIssues(e);
         var note = others.length ? others.join(" · ") : "";
-        erows.push([e.date, factBox, note || (issues.length ? issues.join(" · ") : "—")]);
+        // 「其它指标」是次要信息，此前用正文色，与左边的指标胶囊抢注意力。
+        erows.push([e.date, factBox, note ? el("span", "lw-note", note) : (issues.length ? issues.join(" · ") : "—")]);
         rowClasses.push(issues.length ? "is-stale" : "");
       });
 
@@ -2188,6 +2271,8 @@
     function refresh() {
       state.loading = true;
       renderBody();
+      // renderBody 不管顶栏，刷新中必须自己把「加载中」与旋转态推上去
+      applyState();
       return request(base, "/api/state")
         .then(function (r) {
           state.loading = false;

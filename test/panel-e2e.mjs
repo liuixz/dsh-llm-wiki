@@ -248,6 +248,13 @@ const offNext = texts(taskRows[0]);
 check("停用任务的「下次运行」不再显示未来时间", !offNext.some((t) => /2026\//.test(t)), offNext.join(" / "));
 check("表头有 scope=col", find(root, "lw-table").length > 0 &&
   find(root, "lw-table").every((tb) => tb.children[0].children[0].children.every((th) => th.getAttribute("scope") === "col")));
+// PowerShell 的 LastRunTime 走系统区域设置（fixture 里是 10/31/2026 02:50:50），
+// 同一张表里混两种日期格式，读的人要先猜哪段是月。
+// texts() 会把「任务名 + 描述 + 状态胶囊」都摊平，列下标对不上，直接按内容断言。
+const allTaskTexts = taskRows.map((r) => texts(r).join(" / "));
+check("上次运行时间已归一为 ISO 风格",
+  allTaskTexts.some((t) => /2026-10-31 02:50/.test(t)) && !allTaskTexts.some((t) => /\d{1,2}\/\d{1,2}\/\d{4}/.test(t)),
+  allTaskTexts[0]);
 // 3) 切到历史页
 tabBtns[2].dispatch("click");
 await new Promise((r) => setTimeout(r, 20));
@@ -354,10 +361,42 @@ helpBtn.dispatch("click");
 await new Promise((r) => setTimeout(r, 20));
 check("命令说明面板展开", find(root, "lw-cmdhelp").length === 1);
 check("命令说明有 6 行", find(root, "lw-cmdhelp-row").length === 6, "rows=" + find(root, "lw-cmdhelp-row").length);
+// 展开态此前用 is-primary：同屏「全量」也是实心蓝，两个主按钮互相抵消。
+check("「?」展开时不抢主按钮的实心蓝",
+  !find(root, "lw-runbar")[0].children.find((b) => b.textContent === "?").classList.contains("is-primary"));
 const helpBtn2 = find(root, "lw-runbar")[0].children.find((b) => b.textContent === "?");
 helpBtn2.dispatch("click");
 await new Promise((r) => setTimeout(r, 20));
 check("再点收起", find(root, "lw-cmdhelp").length === 0);
+
+// 8b) 搜索无匹配：卡片不能被整张删掉（用户会以为功能没了）
+const searchBox = find(root, "lw-search")[0];
+searchBox.value = "zzz-no-such-thing";
+searchBox.dispatch("input");
+await new Promise((r) => setTimeout(r, 20));
+const cardsAfterFilter = find(root, "lw-card").length;
+check("搜索无匹配时卡片仍占位", cardsAfterFilter >= 2 && find(root, "lw-empty").length > 0, "cards=" + cardsAfterFilter);
+searchBox.value = "";
+searchBox.dispatch("input");
+await new Promise((r) => setTimeout(r, 20));
+
+// 8c) 输出面板：fmtTime 曾被定义却零调用（死代码），输出面板也从不显示运行开始时间。
+realState.run = {
+  id: "run-1",
+  command: "sync",
+  startedAt: Date.UTC(2026, 10, 8, 13, 30, 0),
+  finished: true,
+  exitCode: 0,
+  output: ["sync 239 条", "done"]
+};
+await handle.refresh();
+await new Promise((r) => setTimeout(r, 40));
+const footTime = find(root, "lw-foot-time")[0];
+check("输出面板显示运行开始时间", !!footTime && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(footTime.textContent),
+  footTime && footTime.textContent);
+realState.run = null;
+await handle.refresh();
+await new Promise((r) => setTimeout(r, 40));
 
 // 9) 销毁
 handle.destroy();
