@@ -1,0 +1,1173 @@
+{
+  "ok": true,
+  "vault": "D:\\vault\\LLM-Wiki",
+  "profile": "desktop",
+  "platform": "win32",
+  "windows": true,
+  "configKeys": [
+    "vault",
+    "previewOrder",
+    "rulesOrder",
+    "mainAgentOnly"
+  ],
+  "secretKeys": [
+    "SF_API_KEY"
+  ],
+  "effective": {
+    "vault": "D:/学习/AI知识库/LLM-Wiki",
+    "previewOrder": 138,
+    "rulesOrder": 139,
+    "mainAgentOnly": true
+  },
+  "layers": [
+    {
+      "id": "profile",
+      "label": "profile 的 cordis.patch.yml（真源）",
+      "path": "C:\\Users\\tester\\.dsh\\profiles\\desktop\\cordis.patch.yml",
+      "writable": true,
+      "exists": true,
+      "error": "",
+      "found": true,
+      "disabled": false,
+      "duplicateEntries": 0,
+      "keys": {
+        "vault": "D:/学习/AI知识库/LLM-Wiki"
+      }
+    },
+    {
+      "id": "global",
+      "label": "$DSH_HOME/cordis.patch.yml",
+      "path": "C:\\Users\\tester\\.dsh\\cordis.patch.yml",
+      "writable": false,
+      "exists": false,
+      "error": "",
+      "found": false,
+      "disabled": false,
+      "duplicateEntries": 0,
+      "keys": {}
+    }
+  ],
+  "drift": [],
+  "secrets": {
+    "path": "C:\\Users\\tester\\.dsh\\.credentials.yaml",
+    "exists": true,
+    "error": "",
+    "items": [
+      {
+        "key": "SF_API_KEY",
+        "label": "SF_API_KEY",
+        "service": "硅基流动 SiliconFlow",
+        "desc": "向量化与会话语义索引的 key。留空则召回降级为纯关键词匹配。",
+        "impact": "记忆体向量化（BAAI/bge-m3）· 会话语义索引 · 画像抽取的末位兜底",
+        "configured": true,
+        "hint": "sk-…qknl",
+        "length": 51
+      }
+    ]
+  },
+  "embed": {
+    "available": true,
+    "coverage": "100%",
+    "embedded": 565,
+    "total": 566,
+    "pct": 100,
+    "model": "BAAI/bge-m3",
+    "protocol": "openai",
+    "embeddingAvailable": true,
+    "ollamaAvailable": true,
+    "keyConfigured": true,
+    "reason": "",
+    "dbPath": "C:\\Users\\tester\\.mnemon\\data\\default\\mnemon.db",
+    "dbBytes": 13357056,
+    "dbHuman": "12.74 MB",
+    "freePct": 0,
+    "softDeleted": 325
+  },
+  "runCommands": [
+    {
+      "id": "all",
+      "label": "全量",
+      "hint": "lint + index + usage + okf + sync 等全部阶段"
+    },
+    {
+      "id": "lint",
+      "label": "检查",
+      "hint": "只查断链 / 孤立 / stale"
+    },
+    {
+      "id": "index",
+      "label": "重建索引",
+      "hint": "wiki/index.md 与分类索引页"
+    },
+    {
+      "id": "sync",
+      "label": "同步记忆",
+      "hint": "写入 mnemon 向量库"
+    },
+    {
+      "id": "health",
+      "label": "体检",
+      "hint": "pipeline-health.mjs 健康快照"
+    },
+    {
+      "id": "compact",
+      "label": "压实记忆库",
+      "hint": "清软删条目 + VACUUM，实测可省 51%"
+    }
+  ],
+  "lock": null,
+  "queue": [],
+  "run": null,
+  "tasks": {
+    "available": true,
+    "platform": "win32",
+    "reason": "",
+    "tasks": [
+      {
+        "name": "LLM-Wiki Pipeline",
+        "desc": "每日全量管线 + 健康快照",
+        "script": "llm-wiki-cron.cmd",
+        "schedule": "daily",
+        "time": "08:50",
+        "exists": true,
+        "enabled": false,
+        "state": "Disabled",
+        "lastRun": "10/31/2026 02:50:50",
+        "lastResult": 0,
+        "lastResultText": "成功",
+        "nextRun": "",
+        "action": "C:\\Users\\tester\\.dsh\\bin\\llm-wiki-cron.cmd"
+      },
+      {
+        "name": "Profile Distill",
+        "desc": "画像候选蒸馏",
+        "script": "profile-distill-cron.cmd",
+        "schedule": "weekly",
+        "time": "09:00",
+        "exists": true,
+        "enabled": false,
+        "state": "Disabled",
+        "lastRun": "10/27/2026 20:50:50",
+        "lastResult": 0,
+        "lastResultText": "成功",
+        "nextRun": "",
+        "action": "C:\\Users\\tester\\.dsh\\bin\\profile-distill-cron.cmd"
+      },
+      {
+        "name": "LLM-Wiki Compile Candidates",
+        "desc": "未编译会话候选",
+        "script": "compile-candidates.cmd",
+        "schedule": "weekly",
+        "time": "09:20",
+        "exists": true,
+        "enabled": false,
+        "state": "Disabled",
+        "lastRun": "10/27/2026 20:50:50",
+        "lastResult": 0,
+        "lastResultText": "成功",
+        "nextRun": "",
+        "action": "C:\\Users\\tester\\.dsh\\bin\\compile-candidates.cmd"
+      },
+      {
+        "name": "LLM-Wiki Stale Review",
+        "desc": "stale 页面复核清单",
+        "script": "stale-review.cmd",
+        "schedule": "weekly",
+        "time": "09:40",
+        "exists": true,
+        "enabled": false,
+        "state": "Disabled",
+        "lastRun": "10/27/2026 20:50:50",
+        "lastResult": 0,
+        "lastResultText": "成功",
+        "nextRun": "",
+        "action": "C:\\Users\\tester\\.dsh\\bin\\stale-review.cmd"
+      },
+      {
+        "name": "LLM-Wiki Weekly Summary",
+        "desc": "周报",
+        "script": "weekly-summary.cmd",
+        "schedule": "weekly",
+        "time": "09:50",
+        "exists": true,
+        "enabled": false,
+        "state": "Disabled",
+        "lastRun": "10/27/2026 20:50:50",
+        "lastResult": 0,
+        "lastResultText": "成功",
+        "nextRun": "",
+        "action": "C:\\Users\\tester\\.dsh\\bin\\weekly-summary.cmd"
+      }
+    ]
+  },
+  "history": {
+    "logPath": "D:\\vault\\LLM-Wiki\\log.md",
+    "logExists": true,
+    "logError": "",
+    "entryCount": 60,
+    "entries": [
+      {
+        "index": 0,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "compact:0%",
+        "facts": {
+          "compact": "0%"
+        },
+        "rest": []
+      },
+      {
+        "index": 1,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "lint:0问题/76孤立/0stale | index:重建 | usage:0页 | okf:47页 | compile:0pattern/ | docs:0个 | dsh:0个 | prune:0条 | sync:344条",
+        "facts": {
+          "lint": "0问题/76孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "47页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "0个",
+          "prune": "0条",
+          "sync": "344条"
+        },
+        "rest": []
+      },
+      {
+        "index": 2,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "lint:0问题/55孤立/0stale | index:重建 | usage:17页 | okf:31页 | compile:0pattern/ | docs:47个 | dsh:7个 | prune:0条 | sync:0条",
+        "facts": {
+          "lint": "0问题/55孤立/0stale",
+          "index": "重建",
+          "usage": "17页",
+          "okf": "31页",
+          "compile": "0pattern/",
+          "docs": "47个",
+          "dsh": "7个",
+          "prune": "0条",
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 3,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "index:重建",
+        "facts": {
+          "index": "重建"
+        },
+        "rest": []
+      },
+      {
+        "index": 4,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "lint:0问题/55孤立/0stale",
+        "facts": {
+          "lint": "0问题/55孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 5,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "sync:0条",
+        "facts": {
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 6,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "sync:0条",
+        "facts": {
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 7,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "compact:51.5%",
+        "facts": {
+          "compact": "51.5%"
+        },
+        "rest": []
+      },
+      {
+        "index": 8,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "compact:51.5%",
+        "facts": {
+          "compact": "51.5%"
+        },
+        "rest": []
+      },
+      {
+        "index": 9,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "compact:51.5%",
+        "facts": {
+          "compact": "51.5%"
+        },
+        "rest": []
+      },
+      {
+        "index": 10,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "sync:0条",
+        "facts": {
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 11,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "compact:51.5%",
+        "facts": {
+          "compact": "51.5%"
+        },
+        "rest": []
+      },
+      {
+        "index": 12,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "sync:0条",
+        "facts": {
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 13,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "compact:51.5%",
+        "facts": {
+          "compact": "51.5%"
+        },
+        "rest": []
+      },
+      {
+        "index": 14,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "sync:0条",
+        "facts": {
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 15,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "compact:51.5%",
+        "facts": {
+          "compact": "51.5%"
+        },
+        "rest": []
+      },
+      {
+        "index": 16,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "sync:239条",
+        "facts": {
+          "sync": "239条"
+        },
+        "rest": []
+      },
+      {
+        "index": 17,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "compact:51.5%",
+        "facts": {
+          "compact": "51.5%"
+        },
+        "rest": []
+      },
+      {
+        "index": 18,
+        "date": "2026-11-07",
+        "kind": "pipeline",
+        "summary": "compact:51.5%",
+        "facts": {
+          "compact": "51.5%"
+        },
+        "rest": []
+      },
+      {
+        "index": 19,
+        "date": "2026-10-30",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:0页 | compile:0pattern/ | docs:31个 | dsh:9个 | prune:0条 | sync:63条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "0页",
+          "compile": "0pattern/",
+          "docs": "31个",
+          "dsh": "9个",
+          "prune": "0条",
+          "sync": "63条"
+        },
+        "rest": []
+      },
+      {
+        "index": 20,
+        "date": "2026-10-29",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 21,
+        "date": "2026-10-29",
+        "kind": "pipeline",
+        "summary": "usage:3页",
+        "facts": {
+          "usage": "3页"
+        },
+        "rest": []
+      },
+      {
+        "index": 22,
+        "date": "2026-10-29",
+        "kind": "pipeline",
+        "summary": "sync:0条",
+        "facts": {
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 23,
+        "date": "2026-10-29",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 24,
+        "date": "2026-10-29",
+        "kind": "pipeline",
+        "summary": "sync:0条",
+        "facts": {
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 25,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "sync:0条",
+        "facts": {
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 26,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:0页 | compile:0pattern/ | docs:0个 | dsh:1个 | prune:8条 | sync:12条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "0页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "1个",
+          "prune": "8条",
+          "sync": "12条"
+        },
+        "rest": []
+      },
+      {
+        "index": 27,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建"
+        },
+        "rest": []
+      },
+      {
+        "index": 28,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:0页 | compile:0pattern/ | docs:0个 | dsh:1个 | prune:0条 | sync:0条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "0页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "1个",
+          "prune": "0条",
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 29,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:0页 | compile:0pattern/ | docs:0个 | dsh:1个 | prune:0条 | sync:0条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "0页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "1个",
+          "prune": "0条",
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 30,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:0页 | compile:0pattern/ | docs:0个 | dsh:1个 | prune:0条 | sync:0条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "0页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "1个",
+          "prune": "0条",
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 31,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "sync:0条",
+        "facts": {
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 32,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:0页 | compile:0pattern/ | docs:0个 | dsh:1个 | prune:0条 | sync:0条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "0页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "1个",
+          "prune": "0条",
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 33,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "okf:0页",
+        "facts": {
+          "okf": "0页"
+        },
+        "rest": []
+      },
+      {
+        "index": 34,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "okf:17页",
+        "facts": {
+          "okf": "17页"
+        },
+        "rest": []
+      },
+      {
+        "index": 35,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:19页 | compile:0pattern/ | docs:0个 | dsh:2个 | prune:0条 | sync:89条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "19页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "2个",
+          "prune": "0条",
+          "sync": "89条"
+        },
+        "rest": []
+      },
+      {
+        "index": 36,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 37,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 38,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 39,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 40,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 41,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 42,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 43,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:51问题/14孤立/0stale | index:重建 | usage:0页 | okf:17页 | compile:0pattern/ | docs:4个 | dsh:7个 | prune:0条 | sync:118条",
+        "facts": {
+          "lint": "51问题/14孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "17页",
+          "compile": "0pattern/",
+          "docs": "4个",
+          "dsh": "7个",
+          "prune": "0条",
+          "sync": "118条"
+        },
+        "rest": []
+      },
+      {
+        "index": 44,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:9问题/1孤立/0stale | index:重建 | usage:0页 | okf:24页 | compile:0pattern/ | docs:0个 | dsh:0个 | prune:0条 | sync:172条",
+        "facts": {
+          "lint": "9问题/1孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "24页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "0个",
+          "prune": "0条",
+          "sync": "172条"
+        },
+        "rest": []
+      },
+      {
+        "index": 45,
+        "date": "2026-10-27",
+        "kind": "pipeline",
+        "summary": "lint:75问题/21孤立/0stale | index:重建 | usage:0页 | okf:25页 | compile:0pattern/ | docs:24个 | dsh:7个 | prune:0条 | sync:184条",
+        "facts": {
+          "lint": "75问题/21孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "25页",
+          "compile": "0pattern/",
+          "docs": "24个",
+          "dsh": "7个",
+          "prune": "0条",
+          "sync": "184条"
+        },
+        "rest": []
+      },
+      {
+        "index": 46,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "sync:2条",
+        "facts": {
+          "sync": "2条"
+        },
+        "rest": []
+      },
+      {
+        "index": 47,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 48,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "sync:0条",
+        "facts": {
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 49,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 50,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "sync:17条",
+        "facts": {
+          "sync": "17条"
+        },
+        "rest": []
+      },
+      {
+        "index": 51,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale",
+        "facts": {
+          "lint": "0问题/0孤立/0stale"
+        },
+        "rest": []
+      },
+      {
+        "index": 52,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "index:重建",
+        "facts": {
+          "index": "重建"
+        },
+        "rest": []
+      },
+      {
+        "index": 53,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:1页 | compile:0pattern/ | docs:0个 | dsh:1个 | prune:0条 | sync:6条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "1页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "1个",
+          "prune": "0条",
+          "sync": "6条"
+        },
+        "rest": []
+      },
+      {
+        "index": 54,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:2页 | compile:0pattern/ | docs:0个 | dsh:1个 | prune:0条 | sync:0条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "2页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "1个",
+          "prune": "0条",
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 55,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "index:重建",
+        "facts": {
+          "index": "重建"
+        },
+        "rest": []
+      },
+      {
+        "index": 56,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:7页 | compile:0pattern/ | docs:0个 | dsh:1个 | prune:0条 | sync:8条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "7页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "1个",
+          "prune": "0条",
+          "sync": "8条"
+        },
+        "rest": []
+      },
+      {
+        "index": 57,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "lint:2问题/0孤立/0stale | index:重建 | usage:0页 | okf:22页 | compile:0pattern/ | docs:0个 | dsh:1个 | prune:0条 | sync:167条",
+        "facts": {
+          "lint": "2问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "22页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "1个",
+          "prune": "0条",
+          "sync": "167条"
+        },
+        "rest": []
+      },
+      {
+        "index": 58,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:0页 | compile:0pattern/ | docs:22个 | dsh:1个 | prune:0条 | sync:0条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "0页",
+          "compile": "0pattern/",
+          "docs": "22个",
+          "dsh": "1个",
+          "prune": "0条",
+          "sync": "0条"
+        },
+        "rest": []
+      },
+      {
+        "index": 59,
+        "date": "2026-10-26",
+        "kind": "pipeline",
+        "summary": "lint:0问题/0孤立/0stale | index:重建 | usage:0页 | okf:0页 | compile:0pattern/ | docs:0个 | dsh:20个 | prune:0条 | sync:0条",
+        "facts": {
+          "lint": "0问题/0孤立/0stale",
+          "index": "重建",
+          "usage": "0页",
+          "okf": "0页",
+          "compile": "0pattern/",
+          "docs": "0个",
+          "dsh": "20个",
+          "prune": "0条",
+          "sync": "0条"
+        },
+        "rest": []
+      }
+    ],
+    "healthDir": "C:\\Users\\tester\\.dsh\\llm-wiki\\reports\\health",
+    "healthFiles": [
+      "health-2026-10.csv",
+      "health-2026-11.csv"
+    ],
+    "series": [
+      {
+        "date": "2026-10-26",
+        "pages": 25,
+        "archived": 0,
+        "rawSessions": 20,
+        "compiled": 0,
+        "compileRatePct": 0,
+        "stale": 0,
+        "lintIssues": 0,
+        "syncPages": 25,
+        "syncChunks": 183,
+        "coveragePct": 100,
+        "userEntries": 0,
+        "userBytes": 0,
+        "profileCandidates": 0,
+        "probeHit": 6,
+        "probeTotal": 6,
+        "probePct": 100,
+        "delta": {
+          "pages": null,
+          "archived": null,
+          "rawSessions": null,
+          "compiled": null,
+          "compileRatePct": null,
+          "stale": null,
+          "lintIssues": null,
+          "syncPages": null,
+          "syncChunks": null,
+          "coveragePct": null,
+          "userEntries": null,
+          "userBytes": null,
+          "profileCandidates": null,
+          "probePct": null
+        }
+      },
+      {
+        "date": "2026-10-27",
+        "pages": 29,
+        "archived": 0,
+        "rawSessions": 35,
+        "compiled": 2,
+        "compileRatePct": 6,
+        "stale": 0,
+        "lintIssues": 0,
+        "syncPages": 29,
+        "syncChunks": 215,
+        "coveragePct": 100,
+        "userEntries": 0,
+        "userBytes": 0,
+        "profileCandidates": 3,
+        "probeHit": 6,
+        "probeTotal": 6,
+        "probePct": 100,
+        "delta": {
+          "pages": 4,
+          "archived": 0,
+          "rawSessions": 15,
+          "compiled": 2,
+          "compileRatePct": 6,
+          "stale": 0,
+          "lintIssues": 0,
+          "syncPages": 4,
+          "syncChunks": 32,
+          "coveragePct": 0,
+          "userEntries": 0,
+          "userBytes": 0,
+          "profileCandidates": 3,
+          "probePct": 0
+        }
+      },
+      {
+        "date": "2026-10-29",
+        "pages": 29,
+        "archived": 0,
+        "rawSessions": 35,
+        "compiled": 2,
+        "compileRatePct": 6,
+        "stale": 0,
+        "lintIssues": 0,
+        "syncPages": 29,
+        "syncChunks": 215,
+        "coveragePct": 100,
+        "userEntries": 0,
+        "userBytes": 0,
+        "profileCandidates": 0,
+        "probeHit": 6,
+        "probeTotal": 6,
+        "probePct": 100,
+        "delta": {
+          "pages": 0,
+          "archived": 0,
+          "rawSessions": 0,
+          "compiled": 0,
+          "compileRatePct": 0,
+          "stale": 0,
+          "lintIssues": 0,
+          "syncPages": 0,
+          "syncChunks": 0,
+          "coveragePct": 0,
+          "userEntries": 0,
+          "userBytes": 0,
+          "profileCandidates": -3,
+          "probePct": 0
+        }
+      },
+      {
+        "date": "2026-10-30",
+        "pages": 60,
+        "archived": 0,
+        "rawSessions": 43,
+        "compiled": 2,
+        "compileRatePct": 5,
+        "stale": 0,
+        "lintIssues": 0,
+        "syncPages": 29,
+        "syncChunks": 215,
+        "coveragePct": 48,
+        "userEntries": 0,
+        "userBytes": 0,
+        "profileCandidates": 0,
+        "probeHit": 6,
+        "probeTotal": 6,
+        "probePct": 100,
+        "delta": {
+          "pages": 31,
+          "archived": 0,
+          "rawSessions": 8,
+          "compiled": 0,
+          "compileRatePct": -1,
+          "stale": 0,
+          "lintIssues": 0,
+          "syncPages": 0,
+          "syncChunks": 0,
+          "coveragePct": -52,
+          "userEntries": 0,
+          "userBytes": 0,
+          "profileCandidates": 0,
+          "probePct": 0
+        }
+      },
+      {
+        "date": "2026-11-07",
+        "pages": 107,
+        "archived": 0,
+        "rawSessions": 50,
+        "compiled": 2,
+        "compileRatePct": 4,
+        "stale": 0,
+        "lintIssues": 0,
+        "syncPages": 60,
+        "syncChunks": 415,
+        "coveragePct": 56,
+        "userEntries": 0,
+        "userBytes": 0,
+        "profileCandidates": 0,
+        "probeHit": 6,
+        "probeTotal": 6,
+        "probePct": 100,
+        "delta": {
+          "pages": 47,
+          "archived": 0,
+          "rawSessions": 7,
+          "compiled": 0,
+          "compileRatePct": -1,
+          "stale": 0,
+          "lintIssues": 0,
+          "syncPages": 31,
+          "syncChunks": 200,
+          "coveragePct": 8,
+          "userEntries": 0,
+          "userBytes": 0,
+          "profileCandidates": 0,
+          "probePct": 0
+        }
+      }
+    ],
+    "latest": {
+      "date": "2026-11-07",
+      "pages": 107,
+      "archived": 0,
+      "rawSessions": 50,
+      "compiled": 2,
+      "compileRatePct": 4,
+      "stale": 0,
+      "lintIssues": 0,
+      "syncPages": 60,
+      "syncChunks": 415,
+      "coveragePct": 56,
+      "userEntries": 0,
+      "userBytes": 0,
+      "profileCandidates": 0,
+      "probeHit": 6,
+      "probeTotal": 6,
+      "probePct": 100,
+      "delta": {
+        "pages": 47,
+        "archived": 0,
+        "rawSessions": 7,
+        "compiled": 0,
+        "compileRatePct": -1,
+        "stale": 0,
+        "lintIssues": 0,
+        "syncPages": 31,
+        "syncChunks": 200,
+        "coveragePct": 8,
+        "userEntries": 0,
+        "userBytes": 0,
+        "profileCandidates": 0,
+        "probePct": 0
+      }
+    }
+  }
+}

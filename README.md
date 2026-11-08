@@ -118,16 +118,20 @@ dsh plugin --profile desktop add github:iwtown/dsh-llm-wiki
 
 界面代码只有一份（`web/panel.js`），降级路径：座位挂不上时，仍可用浏览器直接打开 `http://127.0.0.1:<webServer 端口>/llm-wiki-panel/?tab=tasks`（`?tab=config|tasks|history` 可直达某张表）。
 
+打开后先看**顶部健康横幅**：它按三态（正常 / 需留意 / 正在腐化）告诉你知识库当前到底什么状态，判据是「计划任务有没有被停用 → 最新日志有多旧 → 最近一次 lint / 探针 / 向量覆盖」。点「为什么？」展开逐条依据。旁边那个绿色胶囊说的是另一件事——面板这一秒忙不忙。
+
 | 区域 | 能做什么 |
 |---|---|
 | 配置项 | 表单式布局，每项带用途说明。改 `vault`（可「打开目录」）/ `previewOrder` / `rulesOrder` / `mainAgentOnly`（只写 profile 的 `cordis.patch.yml`，写完提示重启）；同时显示各层配置的生效值与漂移 |
-| 凭据 | 填 / 换 / 清 `SF_API_KEY`（硅基流动，用于记忆体向量化与会话语义索引）。**只写不读**：界面只显示 `sk-…8gOE0`，明文不进浏览器；保存前先打一次真实 `POST /v1/embeddings` 验证，失败原样显示 `HTTP 401 · code 30014 · Token is invalid.`；写进 `~/.dsh/.credentials.yaml`，**无需重启**，下一次管线运行即生效 |
-| 向量化状态 | 覆盖率 / 已向量化 M/T / 模型 + 覆盖率条。配了 key 但覆盖率仍是 0% 时给出原因，并提供「回填向量」按钮（`mnemon embed --all`，走同一把锁，1s 轮询输出） |
-| 存储占用 | 记忆库文件大小 / 空闲页占比 / 待清理条目数，加「压实记忆库」按钮（`--compact`）。这三项才是库变大的主因——活条目正文通常只占百分之几；空闲页 < 5% 且无软删时按钮置灰显示「无需压实」 |
-| 计划任务 | 看五个任务的启用状态 / 上次结果 / 下次运行；启用、停用、改触发时刻（非 Windows 只读展示） |
-| 运行历史 | `log.md` 条目 + `reports/health/health-YYYY-MM.csv` 趋势（每行带与上一行的 Δ 环比） |
+| 凭据 | 填 / 换 / 清 `SF_API_KEY`（硅基流动，用于记忆体向量化与会话语义索引）。**只写不读**：界面只显示 `sk-…末 4 位`，明文不进浏览器；保存前先打一次真实 `POST /v1/embeddings` 验证，失败原样显示 `HTTP 401 · code 30014 · Token is invalid.`；写进 `~/.dsh/.credentials.yaml`，**无需重启**，下一次管线运行即生效。清除走内联二次确认 |
+| 向量化状态 | 覆盖率 / 已向量化 M/T / 模型 + 覆盖率条。配了 key 但覆盖率仍是 0% 时给出原因，并提供「回填向量」按钮（`mnemon embed --all`，走同一把锁，1s 轮询输出）。覆盖率满时按钮不再是主色 |
+| 存储占用 | 记忆库文件大小 / 空闲页占比 / 待清理条目数，加「压实记忆库」按钮（`--compact`）。这三项才是库变大的主因——活条目正文通常只占百分之几；空闲页 < 5% 且无软删时按钮置灰显示「无需压实」。**压实不可逆**，点了先弹一句「清除 N 条已删条目并压实？」，确认才执行，`Esc` 可退 |
+| 计划任务 | 看五个任务的启用状态 / 上次结果 / 下次运行；启用、停用、改触发时刻（非 Windows 只读展示）。**已停用的任务不显示「下次运行」**——`Get-ScheduledTaskInfo` 对停用任务仍会返回一个未来时间，直接透出等于骗人 |
+| 运行历史 | `log.md` 条目（「指标」列按 `facts` 渲染成胶囊：`compact` / `lint` / `sync` / `okf` / `prune`，异常项转色；「其它指标」列捡剩下的 `index` / `usage` / `docs` / `dsh` 等）+ `reports/health/health-YYYY-MM.csv` 趋势（每行带与上一行的 Δ 环比）。带「只看异常」开关，异常行加底色 |
 
-顶部一个搜索框过滤各张表；六个运行按钮跑管线；运行中 1s 轮询输出，跑完自动停。
+顶部一个搜索框过滤各张表；六个运行按钮跑管线，旁边的「?」展开每条命令的说明（此前说明只在 `title` 里，悬停才见）；运行中 1s 轮询输出，跑完自动停。
+
+**键盘与读屏**：三个分区是 `tablist`/`tab` + `aria-selected`，表头带 `scope="col"`，重绘后焦点会回到原来那个控件（`data-fk` 键），`Esc` 退出编辑态或关闭二次确认。窄于 560px 自动进紧凑模式（表格折叠成「标签 : 值」），由 `ResizeObserver` 自适应，不需要调用方传参。
 
 **凭据的边界**：三个凭据接口（`GET/POST/DELETE /api/secret`）与 `POST /api/reveal` 只接受回环来源（`127.0.0.1` / `::1`），其它来源 403。其余接口不含密级数据，不加限制。
 
@@ -135,7 +139,7 @@ dsh plugin --profile desktop add github:iwtown/dsh-llm-wiki
 
 > 面板是**可选组件**：不想用就把 `package.json` 里的 `dsh.client` 与 `exports["./client"]` 去掉、删掉 `lib/` 与 `web/`，插件其余功能不受影响。
 
-设计取舍见 `docs/adr/0001-panel-as-client-plugin.md`；写入哪一层见 `0002-config-write-target.md`；锁的语义见 `0003-pipeline-mutex.md`；凭据为何与配置项分开见 `0004-secret-config.md`；术语见 `GLOSSARY.md`。
+设计取舍见 `docs/adr/0001-panel-as-client-plugin.md`；写入哪一层见 `0002-config-write-target.md`；锁的语义见 `0003-pipeline-mutex.md`；凭据为何与配置项分开见 `0004-secret-config.md`；存储为什么这么大见 `0005-memory-footprint.md`；面板如何保证不说假话见 `0006-panel-truthfulness.md`；术语见 `GLOSSARY.md`。
 
 ## 管线命令
 
@@ -224,6 +228,8 @@ node <仓库>/scripts/profile-distill.mjs --since 30d    # 复核 → 候选 →
 | 画像候选精度 / gold 覆盖 | ≥75% / ≥75% |
 | 健康探针 hit@3 | 6/6 |
 
+本地验收：`npm test` 跑三件事——`test/panel-e2e.mjs`（假 DOM 真跑 `web/panel.js`，40 项断言）、`scripts/eval-profile.mjs`（画像抽取 13 项）、`scripts/eval-retrieval.mjs`（检索 6 项）。界面的布局问题假 DOM 看不出来，再跑 `node test/shot.mjs 1200 900 420`（可加 `--tab=tasks|history`、`--confirm`）用真 Chrome 截图到 `test/shots/` 并打印 `compact` 是否触发、有没有横向溢出。
+
 ## 排错
 
 - **Windows 上 mnemon 是 .cmd**：管线优先找 npm 全局包里的 `mnemon.exe`，找不到退回 `shell: true`。
@@ -253,6 +259,7 @@ dsh-llm-wiki/
 │  ├─ pipeline-health.mjs
 │  └─ embed-proxy.mjs
 ├─ skills/wiki-write · skills/wiki-search
+├─ test/                          # panel-e2e.mjs（假 DOM 真跑界面）+ preview.html/shot.mjs（真 Chrome 截图）
 ├─ docs/adr/  GLOSSARY.md         # 设计决策与项目词汇
 ├─ systemd/  install.sh  install.ps1
 ├─ package.json（bundle 只含插件）
@@ -261,6 +268,7 @@ dsh-llm-wiki/
 
 ## 版本
 
+- `0.13.4`：面板说真话。一次 `/impeccable critique` 给 `web/panel.js` 打 **17/40**，最差三项「系统状态可见性 1 分 / 错误预防 1 分 / 帮助文档 1 分」，追下去全是**面板在骗人**：①五个计划任务全 `Disabled` 时顶栏仍是绿灯「● 空闲」（`applyState()` 只看 `run` 与 `lock`），新增独立的**健康三态横幅**（`ok`/`warn`/`bad`，判据：任务停用 → 日志 ≥3/≥7 天 → `lintIssues` → 探针命中 → 向量覆盖），带「为什么？」展开依据，与顶栏胶囊并存（胶囊说「这一秒忙不忙」，横幅说「知识库健不健康」）；②`Get-ScheduledTaskInfo` 对停用任务仍返回 `NextRunTime`，面板照抄成「下次运行 11/09」而它永远不会跑——`tasks.mjs` 改为先算 `enabled` 常量再决定是否透出，任务页对停用行显示「已停用」并整行灰化；③「压实记忆库」不可逆却零确认——改为卡片内联二次确认（`role="alertdialog"` + 红色填充按钮，`Esc` 可退，**不用 `window.confirm`**：嵌入式 webview 常被宿主拦截，拦了就是静默执行），清除凭据同模式；顺带修掉引用不存在的 `run.running`（`/api/state` 的 run 快照只有 `finished`，导致压实期间按钮从不进 loading）。历史页开始吃 `facts`（此前 UI 里 grep 0 命中）：列改 `[日期, 指标, 其它指标]`、删掉 60 行全是 `pipeline` 的 `kind` 列、指标渲染成 `compact/lint/sync/okf/prune` 胶囊、新增「只看异常」开关（60 条里 5 条）。`compact: false` 写死在 `lib/client.js` 与 `web/panel.html` 导致 30 行降级样式从未生效（420px 实测工具栏被裁到 5 个半按钮）→ 改 `ResizeObserver` 自适应（<560px 进紧凑），调用方传布尔则听它。无障碍：`tablist`/`tab` + `aria-selected`、`th[scope=col]`、`data-fk` 焦点保持（重绘后回到原控件）、`Esc` 退出、运行栏「?」展开命令说明（此前只在 `title`）。同屏只留一个主按钮（回填向量仅 `pct<100` 时为主）。另补 `--lw-fg-4` 令牌与 `spark` 图标（都引用了却从未定义）。决策记入 `docs/adr/0006-panel-truthfulness.md`，端到端探针 40 项全过。
 - `0.13.3`：记忆库存储占用优化。实测纠正了「竖线占空间」的假设——222 条活记忆里竖线共 846 个，只占正文 0.63‰，全删光省不到 0.1%；9.65 MB 里真正的大头是**空闲页 24% + `edges` 六个索引 31% + 软删条目向量 5.1%**，活条目正文只占 2.4%。新增 `--compact` 子命令（删软删条目 → 删悬空边 → `mnemon gc --compact`，VACUUM 必须走官方入口否则 WAL 下失败），副本库实测 `9.65 MB → 4.68 MB`（**−51.5%**）且活条目一条没少、`integrity_check` = ok；不进 `--all`（避免每日管线无条件改写 9 MB 库），改由 `--sync` 后 `shouldAutoCompact()` 按「空闲页 ≥ 15% 或软删 ≥ 200」触发，`LLM_WIKI_COMPACT_AUTO=0` 可关。有损分支 `LLM_WIKI_COMPACT_PRUNE_EDGES=1` 再裁 `importance<4` 的 entity 边可累计省 69%，但召回掉 13%，默认关闭。另新增 `cleanChunkText()`：代码围栏不动、`|---|` 分隔行整行删、竖线行转 `a · b`、空行折叠、`（来源: …）` 锚点不碰——字符 −0.79%、竖线 −85%，省不出空间但片段可读。面板新增「存储占用」卡片与「压实记忆库」按钮（干净库置灰）。决策记入 `docs/adr/0005-memory-footprint.md`。
 - `0.13.2`：修掉「改计划任务时间必报错」。三层原因：①`schtasks /Create` 建的任务 `Description` 是 `$null`，而 `Register-ScheduledTask -Description` 带 `[ValidateNotNullOrEmpty]`，参数绑定阶段就抛「无法对参数 Description 执行参数验证」；②`$t.Triggers[0].DaysOfWeek` 是 **UInt16 位掩码**（周日=1、周一=2、周二=4…）不是枚举序号，直接传给 `-DaysOfWeek` 会让星期每次保存往后漂一天（实测 `1→2→4`）；③`powershell.exe` 按系统代码页（936/GBK）写管道，而 JS 按 utf8 解码，中文报错全变乱码。改法：描述空则回退到任务定义里的中文描述、掩码按位展开成枚举名数组、`-EncodedCommand` 前缀显式设 `[Console]::OutputEncoding` 为 UTF-8，并补 `-Principal $t.Principal` 保证登录身份不被重置。真机验证 daily/weekly 改时间、二次修改不漂移、非法时间被拒、还原后五个任务 `State=Ready` 且掩码与时间与改前一致。
 - `0.13.1`：修掉「点了回填向量，覆盖率几乎没动」。根因是 `mnemon embed --all` **单轮最多处理 100 条**——exit 0、`status: backfill_complete`、`failed: 0`，看起来全完了，实际库里 341 条只做了 100 条；`mnemon` 也没提供可调上限的参数。`startBackfill()` 改为循环跑到收敛：每轮结束比对 `embedded` 增量，有进展且未满 → 自动下一轮，满了 → `回填完成：X / Y（Z%）`，**一轮零新增或非 0 退出 → 停止**（防死循环）。整轮只持一次锁。界面显示「第 N 轮 · M / T」。端到端实测 206 → 300（第 1 轮）→ 341/341 = 100%（第 2 轮，13 秒），数据库直查 `有向量=341`、`1024维=341`。

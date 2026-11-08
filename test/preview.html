@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>panel preview</title>
+<style>
+  html,body{margin:0;padding:0;background:#0d1117;}
+  body{padding:16px;font-family:-apple-system,"Segoe UI",system-ui,sans-serif;}
+  #root{max-width:1160px;margin:0 auto;}
+  /* ?w=420 用来模拟窄容器：Chrome 的 --window-size 最小只能到 ~500，
+     所以窄屏验收靠把容器本身压窄，让 ResizeObserver 看到真实宽度。 */
+  body.narrow{background:#0d1117;}
+</style>
+</head>
+<body>
+<div id="root" class="llmwiki-panel"></div>
+<script>
+  window.__FIXTURE__ = null;
+  window.fetch = function (url) {
+    const path = String(url).replace(/^.*?\/api/, "/api");
+    let body = { ok: true };
+    if (path === "/api/state") body = window.__FIXTURE__;
+    else if (path === "/api/embed") body = { ok: true, embed: window.__FIXTURE__.embed, backfill: null };
+    else if (path === "/api/secret") body = { ok: true, items: window.__FIXTURE__.secrets || [] };
+    return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(body)) });
+  };
+</script>
+<script src="/fixture.js"></script>
+<script src="/panel.js"></script>
+<script>
+  const tab = new URLSearchParams(location.search).get("tab");
+  // ?w=420 → 把容器宽度钉死，模拟真实窄容器（Chrome 最小窗口宽约 500px，靠窗口尺寸测不到 420）
+  const forcedW = Number(new URLSearchParams(location.search).get("w") || 0);
+  if (forcedW > 0) document.getElementById("root").style.maxWidth = forcedW + "px";
+  const api = window.__LLMWikiPanel;
+  const h = api.mount(document.getElementById("root"), { base: "/llm-wiki-panel", locale: "zh" });
+  if (tab) {
+    setTimeout(function () {
+      const btns = Array.from(document.querySelectorAll(".lw-tab"));
+      const i = tab === "tasks" ? 1 : tab === "history" ? 2 : 0;
+      if (btns[i]) btns[i].click();
+    }, 120);
+  }
+
+  // ?confirm=1 → 自动点一下「压实记忆库」，好把内联二次确认的样子截下来。
+  // 注意运行栏里也有同名命令（那个会直接跑），必须限定在「存储占用」卡片内。
+  if (new URLSearchParams(location.search).get("confirm") === "1") {
+    setTimeout(function () {
+      const cards = Array.from(document.querySelectorAll(".lw-card"));
+      const card = cards.find(function (c) { return /存储占用/.test(c.textContent || ""); });
+      const b = card && Array.from(card.querySelectorAll(".lw-btn")).find(function (n) {
+        return /压实/.test(n.textContent || "");
+      });
+      if (b) b.click();
+    }, 400);
+  }
+
+  // 量一下：容器宽度、是否进了紧凑模式、文档有没有横向溢出，以及溢出的元凶
+  setTimeout(function () {
+    const root = document.getElementById("root");
+    const vw = document.documentElement.clientWidth;
+    const wide = [];
+    root.querySelectorAll("*").forEach(function (n) {
+      const r = n.getBoundingClientRect();
+      if (r.right > vw + 1 && n.children.length === 0) {
+        wide.push(n.tagName.toLowerCase() + "." + (n.className || "").toString().split(" ")[0] + " right=" + Math.round(r.right));
+      }
+    });
+    const m = {
+      vw: vw,
+      rootWidth: Math.round(root.getBoundingClientRect().width),
+      compact: root.classList.contains("is-compact"),
+      docScrollWidth: document.documentElement.scrollWidth,
+      overflowing: wide.slice(0, 8)
+    };
+    const pre = document.createElement("pre");
+    pre.id = "metrics";
+    pre.textContent = "METRICS=" + JSON.stringify(m);
+    document.body.appendChild(pre);
+  }, 600);
+</script>
+</body>
+</html>

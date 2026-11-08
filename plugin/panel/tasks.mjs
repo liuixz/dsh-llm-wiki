@@ -111,6 +111,7 @@ export async function readTasks() {
   const tasks = MANAGED_TASKS.map((def) => {
     const live = byName.get(def.name) || { exists: false };
     const exists = live.exists !== false;
+    const enabled = exists ? live.enabled !== false && String(live.state || "") !== "Disabled" : false;
     return {
       name: def.name,
       desc: def.desc,
@@ -118,12 +119,19 @@ export async function readTasks() {
       schedule: exists && live.kind ? live.kind : def.schedule,
       time: exists && live.time ? live.time : def.time,
       exists,
-      enabled: exists ? live.enabled !== false && String(live.state || "") !== "Disabled" : false,
+      enabled,
       state: exists ? String(live.state || "") : "未注册",
       lastRun: exists && live.lastRun && live.lastRun !== "0001-01-01 00:00:00" && !/^1\/1\/1 /.test(live.lastRun) ? live.lastRun : "",
       lastResult: exists ? Number(live.lastResult) : null,
       lastResultText: exists ? explainResult(live.lastResult) : "",
-      nextRun: exists && live.nextRun && !/^1\/1\/1 /.test(live.nextRun) ? live.nextRun : "",
+      // Get-ScheduledTaskInfo 对「已停用」的任务照样返回一个未来的 NextRunTime
+      // （实测：五个任务全 Disabled，Pipeline 仍报 2026/11/9 8:50:50）。
+      // 直接透出这个值等于告诉用户「它还会跑」——面板此前就是这么骗人的。
+      // 所以停用任务一律不透出 nextRun，由 UI 显示「已停用」。
+      nextRun:
+        exists && enabled && live.nextRun && !/^1\/1\/1 /.test(live.nextRun)
+          ? live.nextRun
+          : "",
       action: exists ? String(live.action || "") : "",
     };
   });

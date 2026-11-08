@@ -1,5 +1,68 @@
 # Changelog
 
+## 0.13.4 — 2026-11-08
+
+**面板此前在骗人：五个任务全停时顶栏还是绿灯。这次让它说真话。**
+
+一次 `/impeccable critique` 给面板打了 **17/40**，最差三项是「系统状态可见性 1 分」「错误预防 1 分」「帮助与文档 1 分」。逐条追下去，发现不是审美问题，是三处真在骗人的地方。
+
+### 修掉的三处「面板在骗人」
+
+**1）顶栏绿灯与「五个任务全停」同时成立。** `applyState()` 只看 `run` 与 `lock`——没在跑、没被锁就是 `is-ok`「● 空闲」。实测五个计划任务全 `Disabled`，管线最后一次**任务触发**是 2026-10-31（距今 8 天），用户看到的是「一切正常」。
+
+新增独立的**健康三态横幅**（`ok` / `warn` / `bad`），与顶栏胶囊并存——胶囊说的是「面板这一秒忙不忙」，横幅说的是「知识库健不健康」，两个语义不能合并。判据按硬度排序：
+
+| 判据 | 级别 |
+|---|---|
+| 计划任务被停用 | `bad` |
+| 计划任务未注册 | `warn` |
+| 最新日志距今 ≥ 7 天 / ≥ 3 天 | `bad` / `warn` |
+| 最新快照 `lintIssues > 0` | `warn` |
+| 探针命中 < 100% | `warn` |
+| 向量覆盖率 < 100% | `warn` |
+
+横幅带「为什么？」展开依据。**口径写清楚**：面板无法逐条区分「任务触发」与「手工运行」，实测 11-07 有 19 条日志全是手工跑 `--compact`/`--sync` 留下的，所以这条信号偏保守，详情里明写「依据: log.md &lt;日期&gt;」。
+
+**2）已停用任务照样显示未来的「下次运行」。** `Get-ScheduledTaskInfo` 对 `Disabled` 任务仍返回 `NextRunTime`，`tasks.mjs` 原样透出 → 面板写「下次运行 11/09」，而它永远不会跑。改为先算 `enabled` 常量，`nextRun` 只在启用时透出；任务页对停用行显示「已停用」并整行灰化（`.is-off`）。
+
+**3）「压实记忆库」点一下就直接删。** 它删 325 条软删条目 + VACUUM，不可逆，零确认。改为卡片内联二次确认（`role="alertdialog"` + 红色填充的「确认清除」+「取消」），`Esc` 可退。**不用 `window.confirm`**：嵌入式 webview 常被宿主拦截，拦了就是静默执行。清除凭据同样改这个模式。
+
+顺带修掉 `web/panel.js` 里引用不存在的 `run.running`（`/api/state` 的 run 快照只有 `finished`）——压实期间按钮从不进 loading 态。
+
+### 历史页开始吃 `facts`
+
+`history.mjs` 早就解析出了结构化的 `facts`（`lint`/`sync`/`prune`/`compact`…），UI 里却 grep **0 命中**——整条摘要当 150 字纯文本塞一格，还给了一列 60 行全是 `pipeline` 的 `kind`。
+
+- 列改为 `[日期, 指标, 其它指标]`，`kind` 列删掉（60 行恒定值不是信息，是占位置）。
+- 「指标」列按 `compact/lint/sync/okf/prune` 渲染成胶囊组，`lint` 有问题数时转 warn 色。
+- 「其它指标」列取 `facts` 里剩下的键（`index`/`usage`/`okf`/`compile`/`docs`/`dsh`…）。**这一列最初写成 `e.rest`，上线前截图才发现 60 行全是「—」**：`log.md` 的摘要全是 `key:value` 形式，`parseSummary()` 的 `rest` 因此恒为空。截图验收抓到的，假 DOM 探针抓不到（结构对、内容空）。
+- 新增「只看异常」开关：异常行（lint > 0 / stale > 0 / prune 非 0）加底色，开关只留这些行。当前 60 条里 5 条。
+
+### 修掉 30 行从未生效的死代码
+
+`lib/client.js` 与 `web/panel.html` 都把 `compact: false` 写死，`.is-compact` 那套降级样式从未生效——420px 实测工具栏 6 个按钮被裁到只剩 5 个半，vault 行的「改」按钮被切出视口。
+
+改为三态：调用方传布尔就听它；未传则用 `ResizeObserver` 观察容器宽度，`< 560px` 自动进紧凑模式。
+
+### 键盘与读屏
+
+- `role="tablist"` / `role="tab"` / `aria-selected`；`th` 加 `scope="col"`；运行栏 `role="group"` + `aria-label`；搜索框补 `aria-label`。
+- **焦点保持**：`renderBody()` 全量重建会把焦点打回 `<body>`。给会触发重绘的控件打稳定键 `data-fk`（如 `cfg:vault:edit`），重绘前记住、重绘后找回。取消编辑也回原行。
+- **`Esc`** 退出编辑态 / 关闭二次确认。
+- **命令说明**：六个命令的区别此前只在 `title`（悬停才见，触屏与键盘拿不到）。运行栏加「?」开关，展开可见说明表。
+
+### 同屏只留一个主按钮
+
+配置页曾同时出现三个蓝色 `is-primary`（全量 / 回填向量 / 压实记忆库），互相抵消。改为回填向量仅 `pct < 100` 时为主、压实仅 `needCompact` 时为主、健康横幅的「去任务页」用普通按钮。
+
+### 其它
+
+- 补 `--lw-fg-4` 令牌（`.lw-table-wrap` 滚动条 hover 引用了它却从未定义，静默失效）。
+- 补 `spark` 图标（向量化卡片一直传 `"spark"` 但 `ICONS` 里没有，渲染出空 `<svg>`，表现为标题前凭空留白）。
+- 新增 `docs/adr/0006-panel-truthfulness.md`。
+- 新增 `test/panel-e2e.mjs`（假 DOM 真跑 `panel.js`，40 项断言），覆盖「点压实不发请求」「Esc 后仍未发请求」「取消后焦点回到该行」。
+- 新增 `test/preview.html` + `test/shot.mjs`：真 Chrome 在 1200/900/420 三档截真图并输出布局 metrics（`vw`/`rootWidth`/`compact`/`docScrollWidth`/溢出元素），`npm test` 之外的肉眼验收手段。截图抓到了两个假 DOM 探针抓不到的问题：历史页「摘要」列 60 行全是「—」，以及紧凑模式下状态胶囊被 grid 的 stretch 拉成整行色带（`.lw-table td > .lw-chip{justify-self:start}`）。
+
 ## 0.13.3 — 2026-11-08
 
 **记忆库 9 MB 的锅不在表格竖线上：新增压实，实测省 51%。**

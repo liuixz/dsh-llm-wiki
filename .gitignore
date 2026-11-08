@@ -9,5 +9,11 @@ node_modules/
 .env
 /.vs
 
-# ��ʱ�ύ��Ϣ�ļ�
+# 临时提交信息文件
 .commit-msg.txt
+
+# 设计工作流产物（impeccable 的本地状态，报告另有归档）
+.impeccable/live/
+
+# 面板截图（本地验收用，跑 node test/shot.mjs 随时重生成）
+test/shots/

@@ -19,7 +19,8 @@
         return;
       }
       try {
-        api.mount(root, { base: "/llm-wiki-panel", locale: lang, compact: false });
+        // 不传 compact：让 panel.js 按容器宽度自适应（窄屏自动切紧凑布局）
+        api.mount(root, { base: "/llm-wiki-panel", locale: lang });
       } catch (e) {
         root.textContent = "面板初始化失败: " + (e && e.message ? e.message : e);
       }

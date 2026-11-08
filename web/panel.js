@@ -32,6 +32,9 @@
   --lw-fg:var(--dsw-alias-label-primary,var(--foreground,#1f2328));
   --lw-fg-2:var(--dsw-alias-label-secondary,var(--muted-foreground,#5b636c));
   --lw-fg-3:var(--dsw-alias-label-tertiary,var(--muted-foreground,#7d8590));
+  /* 之前 .lw-table-wrap 的滚动条 hover 引用了 --lw-fg-4 却从未定义 → 那条规则静默失效。
+     补上并回退到 --lw-fg-3，保证任何主题下都有值。 */
+  --lw-fg-4:var(--dsw-alias-label-quaternary,var(--lw-fg-3));
   --lw-bg:var(--dsw-alias-bg-base,var(--background,#fff));
   --lw-bg-1:var(--dsw-alias-bg-layer-1,var(--card,#fff));
   --lw-bg-2:var(--dsw-alias-bg-layer-2,var(--muted,#f5f6f8));
@@ -192,6 +195,52 @@
 .lw-banner.is-warn{color:var(--lw-warn);border-color:color-mix(in srgb,var(--lw-warn) 35%,var(--lw-border));background:color-mix(in srgb,var(--lw-warn) 9%,var(--lw-bg-1));}
 .lw-banner.is-bad{color:var(--lw-bad);border-color:color-mix(in srgb,var(--lw-bad) 35%,var(--lw-border));background:color-mix(in srgb,var(--lw-bad) 9%,var(--lw-bg-1));}
 
+/* ---- 健康横幅（P0）：三态 + 可展开的原因清单 ----
+   设计意图：这个面板此前只有一个「● 空闲」绿灯，它同时与「五个计划任务全停」
+   成立，等于告诉用户一切正常。横幅把「知识库正在腐化」当成一等状态摆出来。 */
+.lw-health{
+  display:flex;align-items:flex-start;gap:9px;
+  padding:10px 12px;border-radius:var(--lw-r-sm);font-size:12px;line-height:1.5;
+  border:1px solid var(--lw-border);background:var(--lw-bg-2);color:var(--lw-fg-2);
+}
+.lw-health.is-ok{color:var(--lw-ok);border-color:color-mix(in srgb,var(--lw-ok) 35%,var(--lw-border));background:color-mix(in srgb,var(--lw-ok) 9%,var(--lw-bg-1));}
+.lw-health.is-warn{color:var(--lw-warn);border-color:color-mix(in srgb,var(--lw-warn) 38%,var(--lw-border));background:color-mix(in srgb,var(--lw-warn) 11%,var(--lw-bg-1));}
+.lw-health.is-bad{color:var(--lw-bad);border-color:color-mix(in srgb,var(--lw-bad) 38%,var(--lw-border));background:color-mix(in srgb,var(--lw-bad) 11%,var(--lw-bg-1));}
+.lw-health-ico{flex:none;margin-top:1px;}
+.lw-health-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:4px;}
+.lw-health-title{font-weight:600;color:inherit;}
+.lw-health-list{margin:0;padding-left:16px;color:inherit;opacity:.92;font-size:11.5px;}
+.lw-health-list li{margin:1px 0;}
+.lw-health-act{flex:none;display:flex;gap:6px;align-items:center;}
+.lw-health-act .lw-btn{height:24px;padding:0 9px;font-size:11.5px;}
+.lw-healthwrap{display:flex;flex-direction:column;gap:8px;}
+.lw-healthwrap:empty{display:none;}
+
+/* 任务行告警：停用/从未运行的行整行降调，但状态胶囊仍然醒目 */
+.lw-table tbody tr.is-off td{color:var(--lw-fg-3);}
+.lw-table tbody tr.is-off .lw-name-main{color:var(--lw-fg-3);font-weight:500;}
+.lw-table tbody tr.is-stale td{background:color-mix(in srgb,var(--lw-warn) 7%,transparent);}
+
+/* ---- 内联二次确认（P1）：不可逆动作必须先变成一个问题 ---- */
+.lw-confirm{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:7px 10px;border-radius:var(--lw-r-sm);
+  border:1px solid color-mix(in srgb,var(--lw-bad) 40%,var(--lw-border));
+  background:color-mix(in srgb,var(--lw-bad) 8%,var(--lw-bg-1));
+  font-size:11.5px;color:var(--lw-bad);
+}
+.lw-confirm-q{font-weight:600;}
+.lw-btn.is-danger-fill{
+  color:#fff;background:var(--lw-bad);
+  border-color:color-mix(in srgb,var(--lw-bad) 80%,#000);
+}
+.lw-btn.is-danger-fill:hover{background:color-mix(in srgb,var(--lw-bad) 88%,#000);}
+
+/* ---- 开关（P2）：只看异常 ---- */
+.lw-switch{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--lw-fg-2);cursor:pointer;user-select:none;}
+.lw-switch input{width:13px;height:13px;margin:0;accent-color:var(--lw-brand);}
+.lw-switch.is-on{color:var(--lw-brand);}
+
 /* ---- 表格 ---- */
 .lw-h{font-size:12px;font-weight:600;color:var(--lw-fg-3);}
 .lw-warn{color:var(--lw-warn);}
@@ -245,6 +294,20 @@
 .lw-chip.is-warn,.lw-chip.is-lock{color:var(--lw-warn);border-color:color-mix(in srgb,var(--lw-warn) 40%,transparent);background:color-mix(in srgb,var(--lw-warn) 10%,transparent);}
 .lw-chip.is-bad{color:var(--lw-bad);border-color:color-mix(in srgb,var(--lw-bad) 40%,transparent);background:color-mix(in srgb,var(--lw-bad) 10%,transparent);}
 .lw-chip.is-run{color:var(--lw-brand);border-color:color-mix(in srgb,var(--lw-brand) 40%,transparent);background:color-mix(in srgb,var(--lw-brand) 10%,transparent);}
+
+/* ---- 历史页：结构化指标胶囊组 ---- */
+.lw-facts{display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
+.lw-facts .lw-chip{font-size:10.5px;padding:0 6px;}
+
+/* ---- 命令说明（运行栏「?」展开） ---- */
+.lw-cmdhelp{
+  display:flex;flex-direction:column;gap:2px;
+  padding:8px 10px;border:1px solid var(--lw-border);border-radius:var(--lw-r-md);
+  background:var(--lw-bg-1);font-size:11.5px;
+}
+.lw-cmdhelp-row{display:flex;gap:10px;align-items:baseline;}
+.lw-cmdhelp-name{flex:0 0 auto;min-width:64px;font-weight:600;color:var(--lw-fg);}
+.lw-cmdhelp-hint{flex:1 1 auto;min-width:0;color:var(--lw-fg-3);line-height:1.5;}
 
 /* ---- 趋势条 ---- */
 .lw-trend{display:flex;align-items:center;gap:8px;min-width:120px;}
@@ -326,6 +389,9 @@
 }
 .llmwiki-panel.is-compact .lw-table td[data-label=""]::before{content:none;}
 .llmwiki-panel.is-compact .lw-table td[data-label=""]{grid-template-columns:minmax(0,1fr);}
+/* 单元格是 grid 容器，直接放进去的胶囊会被 justify 的 stretch 拉满整行，
+   看起来像一条色带而不是标签——状态/结果这类短值必须保持自身宽度。 */
+.llmwiki-panel.is-compact .lw-table td > .lw-chip{justify-self:start;}
 /* 紧凑模式每行折叠成「标签 : 值」，不再需要横向滚动 */
 .llmwiki-panel.is-compact .lw-table-wrap{overflow-x:visible;}
 .llmwiki-panel.is-compact .lw-pre{max-height:180px;}
@@ -368,7 +434,10 @@
     queue: '<path d="M3 5h10M3 8h10M3 11h6.5"/>',
     power: '<path d="M8 2.6v5"/><path d="M5.1 4.5a4.6 4.6 0 1 0 5.8 0"/>',
     terminal: '<rect x="2.4" y="3.4" width="11.2" height="9.2" rx="1.5"/><path d="M4.9 7 6.6 8.6 4.9 10.2M8.3 10.4h2.8"/>',
-    db: '<ellipse cx="8" cy="4.2" rx="5.2" ry="2.1"/><path d="M2.8 4.2v7.4c0 1.2 2.3 2.1 5.2 2.1s5.2-.9 5.2-2.1V4.2"/><path d="M2.8 7.9c0 1.2 2.3 2.1 5.2 2.1s5.2-.9 5.2-2.1"/>'
+    db: '<ellipse cx="8" cy="4.2" rx="5.2" ry="2.1"/><path d="M2.8 4.2v7.4c0 1.2 2.3 2.1 5.2 2.1s5.2-.9 5.2-2.1V4.2"/><path d="M2.8 7.9c0 1.2 2.3 2.1 5.2 2.1s5.2-.9 5.2-2.1"/>',
+    // 向量化卡片一直传 "spark" 但这里没有对应图形 → 渲染出一个空 <svg>，
+    // 表现为卡片标题前凭空多一块留白。补上。
+    spark: '<path d="M8 1.8 9.5 6.3 14 8l-4.5 1.7L8 14.2 6.5 9.7 2 8l4.5-1.7z"/>'
   };
 
   function icon(name) {
@@ -423,7 +492,7 @@
       nextRun: "下次运行",
       action: "操作",
       date: "日期",
-      summary: "摘要",
+      others: "其它指标",
       trend: "趋势",
       pages: "页面",
       probe: "探针",
@@ -460,7 +529,6 @@
       secSave: "验证并保存",
       secSavedNoRestart: "已保存。下一次管线运行即生效，无需重启 DSH。",
       secCleared: "已清除。向量检索将降级为纯关键词匹配。",
-      secClearing: "确定清除 {k} 吗？清除后召回会降级为关键词匹配。",
       secPlaceholder: "粘贴 sk- 开头的 key",
       secSkipVerify: "跳过验证（断网时用）",
       secVerifying: "验证中…",
@@ -490,7 +558,38 @@
       dbCompact: "压实记忆库",
       dbCompacting: "压实中…",
       dbClean: "无需压实",
-      dbSaved: "压实完成，省了 {pct}%"
+      dbSaved: "压实完成，省了 {pct}%",
+      /* --- 健康横幅（P0） --- */
+      hOk: "一切正常：任务在跑，历史是新的",
+      hWarn: "需要留意",
+      hBad: "知识库正在腐化",
+      hTasksOff: "{n} 个计划任务已停用",
+      hTasksOffOne: "{n} 个计划任务已停用",
+      hTasksMissing: "{n} 个计划任务未注册",
+      hStale: "距上次管线运行已 {d} 天",
+      hNoHistory: "还没有历史记录",
+      hLint: "最近一次运行有 {n} 个 lint 问题",
+      hCoverage: "向量覆盖率 {pct}%",
+      hShowWhy: "为什么？",
+      hHideWhy: "收起",
+      hGoTasks: "去任务页",
+      hBecause: "依据",
+      /* --- 内联二次确认（P1） --- */
+      cfCompactQ: "清除 {n} 条已删条目并压实？",
+      cfCompactYes: "确认清除",
+      cfCompactNo: "取消",
+      cfCompactWhy: "不可撤销，只回收空间，不动任何活条目。",
+      cfSecretQ: "清除 {k}？",
+      /* --- 历史筛选（P2） --- */
+      onlyIssues: "只看异常",
+      facts: "指标",
+      allNormal: "记录里没有异常",
+      noMatch: "没有匹配的内容",
+      /* --- 无障碍（P3） --- */
+      ariaTabs: "分区",
+      ariaHealth: "知识库健康状态",
+      ariaRunbar: "管线命令",
+      cmdHelp: "每条命令做什么"
     },
     en: {
       title: "LLM-Wiki Admin",
@@ -531,7 +630,7 @@
       nextRun: "Next run",
       action: "Action",
       date: "Date",
-      summary: "Summary",
+      others: "Other",
       trend: "Trend",
       pages: "Pages",
       probe: "Probe",
@@ -568,7 +667,6 @@
       secSave: "Verify and save",
       secSavedNoRestart: "Saved. Takes effect on the next pipeline run — no restart needed.",
       secCleared: "Cleared. Vector recall falls back to keyword matching.",
-      secClearing: "Clear {k}? Recall will fall back to keyword matching.",
       secPlaceholder: "Paste the sk- key",
       secSkipVerify: "Skip verification (offline)",
       secVerifying: "Verifying…",
@@ -598,7 +696,38 @@
       dbCompact: "Compact database",
       dbCompacting: "Compacting…",
       dbClean: "Nothing to compact",
-      dbSaved: "Compacted, saved {pct}%"
+      dbSaved: "Compacted, saved {pct}%",
+      /* --- health banner (P0) --- */
+      hOk: "All good: tasks enabled and history current",
+      hWarn: "Needs attention",
+      hBad: "Knowledge base is rotting",
+      hTasksOff: "{n} scheduled task(s) disabled",
+      hTasksOffOne: "{n} scheduled task disabled",
+      hTasksMissing: "{n} scheduled task(s) not registered",
+      hStale: "Last pipeline run was {d} days ago",
+      hNoHistory: "No history yet",
+      hLint: "{n} lint issue(s) in the latest run",
+      hCoverage: "Vector coverage {pct}%",
+      hShowWhy: "Why?",
+      hHideWhy: "Hide",
+      hGoTasks: "Open tasks",
+      hBecause: "Detail",
+      /* --- inline confirm (P1) --- */
+      cfCompactQ: "Purge {n} deleted entries and vacuum?",
+      cfCompactYes: "Yes, compact",
+      cfCompactNo: "Cancel",
+      cfCompactWhy: "This is irreversible and frees space only; no live entry is touched.",
+      cfSecretQ: "Clear {k}?",
+      /* --- history filters (P2) --- */
+      onlyIssues: "Issues only",
+      facts: "Facts",
+      allNormal: "No issues in the recorded history",
+      noMatch: "Nothing matches the filter",
+      /* --- a11y (P3) --- */
+      ariaTabs: "Sections",
+      ariaHealth: "Knowledge base health status",
+      ariaRunbar: "Pipeline commands",
+      cmdHelp: "What each command does"
     }
   };
 
@@ -647,7 +776,12 @@
     opts = opts || {};
     var base = opts.base || "/llm-wiki-panel";
     var d = dict(opts.locale);
-    var compact = !!opts.compact;
+    // compact 三态：true/false = 调用方强制；undefined = 按容器宽度自适应。
+    // 之前两边入口都写死 false，导致 30 行 .is-compact 降级样式是死代码，
+    // 420px 下工具栏六个按钮被裁出视口（critique 实测）。
+    var compactOpt = typeof opts.compact === "boolean" ? opts.compact : null;
+    var compact = compactOpt === true;
+    var COMPACT_WIDTH = 560;
 
     // 初始标签页：支持 ?tab=tasks 直达（降级页从外部链接跳转时有用）
     var initialTab = "config";
@@ -670,13 +804,49 @@
       runPoll: null,
       run: null,
       backfill: null,     // 最近一次向量回填 { finished, exitCode, output }
-      backfillPoll: null
+      backfillPoll: null,
+      health: null,       // 健康判定结果，见 computeHealth()
+      healthOpen: false,  // 横幅里的「为什么？」是否展开
+      confirmCompact: false, // 压实的内联二次确认是否已展开
+      confirmSecret: "",  // 正在确认清除的凭据 key（空 = 没有确认中）
+      onlyIssues: false,  // 历史页「只看异常」
+      helpOpen: false,    // 运行命令说明是否展开
+      focusAfter: ""      // 下一次重绘后要把焦点送到哪个 data-fk（用于「保存后回到改按钮」）
     };
 
     root.textContent = "";
     ensureStyle();
     root.classList.add("llmwiki-panel");
-    if (compact) root.classList.add("is-compact");
+
+    // 自适应紧凑模式：容器变窄就切到降级布局（表格转卡片、工具栏竖排）。
+    // 调用方显式传 compact:true/false 时不接管。
+    var ro = null;
+    function applyCompact() {
+      if (compactOpt !== null) {
+        root.classList.toggle("is-compact", compactOpt);
+        return;
+      }
+      var w = 0;
+      try {
+        w = root.getBoundingClientRect ? root.getBoundingClientRect().width : 0;
+      } catch (e) { /* 忽略：拿不到宽度就当宽屏 */ }
+      // 还没布局完（宽度 0）时不要贸然切紧凑，否则首帧会闪一下窄版
+      if (!w) w = window.innerWidth || 0;
+      var next = w > 0 && w < COMPACT_WIDTH;
+      if (next !== compact) {
+        compact = next;
+        root.classList.toggle("is-compact", compact);
+      }
+    }
+    applyCompact();
+    if (compactOpt === null && typeof ResizeObserver === "function") {
+      try {
+        ro = new ResizeObserver(function () { applyCompact(); });
+        ro.observe(root);
+      } catch (e) {
+        ro = null;
+      }
+    }
 
     // 顶栏
     var head = el("div", "lw-head");
@@ -710,6 +880,7 @@
     search.type = "search";
     search.className = "lw-search";
     search.placeholder = d.search;
+    search.setAttribute("aria-label", d.search);
     search.addEventListener("input", function () {
       state.query = search.value.trim().toLowerCase();
       renderBody();
@@ -724,7 +895,15 @@
     // 提示条
     var banner = el("div", "lw-banner");
     banner.style.display = "none";
+    banner.setAttribute("role", "status");
+    banner.setAttribute("aria-live", "polite");
     root.appendChild(banner);
+
+    // 健康横幅（P0）：与上面的 banner 是两件事——banner 报「刚才那次操作的结果」，
+    // 健康横幅报「知识库当前是什么状态」。之前只有顶栏那个绿灯，而它在
+    // 「五个任务全停」时照样是绿的，等于骗人。
+    var healthWrap = el("div", "lw-healthwrap");
+    root.appendChild(healthWrap);
 
     // 主体
     var bodyWrap = el("div", "lw-body");
@@ -733,6 +912,40 @@
     // 底部（运行输出）
     var foot = el("div", "lw-foot");
     root.appendChild(foot);
+
+    /**
+     * 焦点保持（P3）。
+     *
+     * renderBody() 每次都 `bodyWrap.textContent = ""` 全量重建，焦点会掉回 <body>：
+     * 键盘用户点「改」→ 输入 → 保存之后，焦点不知飞哪去了，得重新 Tab 一路找回来。
+     * 做法是给会触发重绘的控件打一个稳定键（data-fk），重绘前记住当前键、重绘后找回来。
+     */
+    function focusKeyOf(node) {
+      try {
+        var n = node || document.activeElement;
+        while (n && n !== document.body) {
+          if (n.getAttribute && n.getAttribute("data-fk")) return n.getAttribute("data-fk");
+          n = n.parentNode;
+        }
+      } catch (e) { /* 忽略 */ }
+      return "";
+    }
+
+    function restoreFocus(key) {
+      if (!key) return;
+      var target = null;
+      try {
+        target = bodyWrap.querySelector('[data-fk="' + String(key).replace(/"/g, '\\"') + '"]');
+      } catch (e) { /* 选择器异常就放弃 */ }
+      if (!target) return;
+      try { target.focus(); } catch (e) { /* 不可聚焦就算了 */ }
+    }
+
+    /** 给控件打焦点键并返回它，方便链式写 */
+    function fk(node, key) {
+      if (node && key) node.setAttribute("data-fk", key);
+      return node;
+    }
 
     function say(msg, kind) {
       state.message = msg || "";
@@ -758,19 +971,179 @@
       statusDot.className = "lw-dot " + tone;
     }
 
+    /**
+     * 计算知识库健康度（P0）。
+     *
+     * 为什么必须有这个函数：critique 实测过，顶栏那个「● 空闲」绿灯与
+     * 「五个计划任务全部 Disabled」同时成立——绿灯只反映「此刻有没有进程在跑」，
+     * 与「知识库是否在腐化」完全无关。PRODUCT.md 的第 6 条原则是「停用即故障」，
+     * 所以这里把「任务被关」「历史停滞」当成一等故障报出来，而不是留给用户自己拼。
+     *
+     * 三态：ok（全绿）/ warn（有可恢复的问题）/ bad（已在腐化）。
+     */
+    function computeHealth() {
+      var data = state.data || {};
+      var tasks = (data.tasks && data.tasks.tasks) || [];
+      var hist = data.history || {};
+      var reasons = [];
+      var level = "ok";
+
+      // 1) 计划任务：停用 / 未注册。这是最硬的一条——任务停了，后面全都不会发生。
+      if (data.tasks && data.tasks.available) {
+        var off = tasks.filter(function (t) { return t.exists && !t.enabled; });
+        var gone = tasks.filter(function (t) { return !t.exists; });
+        if (off.length > 0) {
+          reasons.push({
+            text: (off.length === 1 ? d.hTasksOffOne : d.hTasksOff).replace("{n}", String(off.length)),
+            level: "bad",
+            detail: off.map(function (t) { return t.name; }).join("、"),
+          });
+        }
+        if (gone.length > 0) {
+          reasons.push({
+            text: d.hTasksMissing.replace("{n}", String(gone.length)),
+            level: "warn",
+            detail: gone.map(function (t) { return t.name; }).join("、"),
+          });
+        }
+      }
+
+      // 2) 历史新鲜度。注意：必须用「任务触发的运行」而不是「log.md 最新一条」——
+      //    实测 11-07 有 19 条全是手工跑 --compact/--sync 留下的，任务本身已经停了 8 天。
+      //    面板无法逐条区分来源，所以退一步用「最新一条日志距今多久」作保守信号，
+      //    并在详情里说明这个口径。
+      var latestDate = "";
+      if (hist.latest && hist.latest.date) latestDate = hist.latest.date;
+      else if ((hist.entries || []).length > 0) latestDate = hist.entries[0].date;
+      if (!latestDate) {
+        reasons.push({ text: d.hNoHistory, level: "warn", detail: hist.logPath || "" });
+      } else {
+        var ageDays = -1;
+        try {
+          var t0 = new Date(String(latestDate) + "T00:00:00").getTime();
+          if (isFinite(t0)) ageDays = Math.floor((Date.now() - t0) / 86400000);
+        } catch (e) { /* 日期解析失败就不判新鲜度 */ }
+        if (ageDays >= 3) {
+          reasons.push({
+            text: d.hStale.replace("{d}", String(ageDays)),
+            level: ageDays >= 7 ? "bad" : "warn",
+            detail: d.hBecause + ": log.md " + latestDate + (hist.logPath ? " · " + hist.logPath : ""),
+          });
+        }
+      }
+
+      // 3) 最近一次运行的具体异常：lint 问题、探针未过、向量覆盖不全。
+      var lt = hist.latest || {};
+      if (Number(lt.lintIssues || 0) > 0) {
+        reasons.push({ text: d.hLint.replace("{n}", String(lt.lintIssues)), level: "warn", detail: "" });
+      }
+      if (lt.probePct != null && Number(lt.probePct) < 100) {
+        reasons.push({ text: d.probe + " " + lt.probePct + "%", level: "warn", detail: "" });
+      }
+      var emb = data.embed || {};
+      if (emb.available && emb.total > 0 && Number(emb.pct) < 100) {
+        reasons.push({ text: d.hCoverage.replace("{pct}", String(emb.pct)), level: "warn", detail: "" });
+      }
+
+      // 汇总等级：任何一条 bad 就整体 bad；否则有 warn 就 warn。
+      reasons.forEach(function (r) { if (r.level === "bad") level = "bad"; });
+      if (level !== "bad" && reasons.length > 0) level = "warn";
+
+      return { level: level, reasons: reasons };
+    }
+
+    /** 渲染健康横幅。三态胶囊 + 可展开的原因清单 + 直达动作 */
+    function renderHealth() {
+      healthWrap.textContent = "";
+      var h = state.health;
+      if (!h) return;
+      if (h.level === "ok" && h.reasons.length === 0) {
+        // 全绿时也给一条，但收得很轻：用户需要知道「这个绿灯是查过之后才绿的」
+        var okBox = el("div", "lw-health is-ok");
+        okBox.setAttribute("role", "status");
+        okBox.appendChild(iconEl("check", "lw-health-ico"));
+        var okMain = el("div", "lw-health-main");
+        okMain.appendChild(el("div", "lw-health-title", d.hOk));
+        okBox.appendChild(okMain);
+        healthWrap.appendChild(okBox);
+        return;
+      }
+
+      var box = el("div", "lw-health is-" + h.level);
+      box.setAttribute("role", "alert");
+      box.setAttribute("aria-label", d.ariaHealth);
+      box.appendChild(iconEl(h.level === "bad" ? "alert" : "clock", "lw-health-ico"));
+
+      var main = el("div", "lw-health-main");
+      main.appendChild(el("div", "lw-health-title", h.level === "bad" ? d.hBad : d.hWarn));
+      if (state.healthOpen) {
+        var ul = el("ul", "lw-health-list");
+        h.reasons.forEach(function (r) {
+          var li = el("li");
+          li.appendChild(document.createTextNode(r.text));
+          if (r.detail) li.appendChild(el("span", "lw-name-sub", " · " + r.detail));
+          ul.appendChild(li);
+        });
+        main.appendChild(ul);
+      } else {
+        // 收起时只显示第一条，够用户判断要不要展开
+        main.appendChild(el("div", "lw-health-list", h.reasons.map(function (r) { return r.text; }).join(" · ")));
+      }
+      box.appendChild(main);
+
+      var act = el("div", "lw-health-act");
+      if (h.reasons.length > 0) {
+        var why = el("button", "lw-btn", state.healthOpen ? d.hHideWhy : d.hShowWhy);
+        why.type = "button";
+        why.setAttribute("aria-expanded", state.healthOpen ? "true" : "false");
+        why.addEventListener("click", function () {
+          state.healthOpen = !state.healthOpen;
+          renderHealth();
+        });
+        act.appendChild(why);
+      }
+      if (h.level === "bad") {
+        // 这里刻意不用 is-primary：同屏已经有一个主行动（运行栏的「全量」），
+        // 再加一个同色主按钮就互相抵消了——critique 记的就是这一点。
+        var go = el("button", "lw-btn", d.hGoTasks);
+        go.type = "button";
+        go.addEventListener("click", function () {
+          state.tab = "tasks";
+          state.editing = null;
+          renderBody();
+        });
+        act.appendChild(go);
+      }
+      box.appendChild(act);
+      healthWrap.appendChild(box);
+    }
+
+    /** 带 class 的图标（icon() 返回裸 span，这里补类名） */
+    function iconEl(name, cls) {
+      var n = icon(name);
+      if (cls) n.className += " " + cls;
+      return n;
+    }
+
     // 各运行命令的图标（未知命令回退到播放图标）
     var RUN_ICON = { all: "play", lint: "check", index: "queue", sync: "refresh", health: "clock" };
 
     function renderRunBar() {
       runBar.textContent = "";
+      runBar.setAttribute("role", "group");
+      runBar.setAttribute("aria-label", d.ariaRunbar);
       var cmds = (state.data && state.data.runCommands) || [];
       var running = !!(state.run && !state.run.finished) || !!(state.data && state.data.run && !state.data.run.finished);
       cmds.forEach(function (c) {
         var b = el("button", "lw-btn" + (c.id === "all" ? " is-primary" : ""));
         b.type = "button";
+        fk(b, "run:" + c.id);
         b.appendChild(icon(RUN_ICON[c.id] || "play"));
         b.appendChild(document.createTextNode(c.label || c.id));
+        // 六个命令的区别此前只存在于 title 里（鼠标悬停才看得到，键盘与触屏都拿不到）。
+        // 现在 aria-label 带上说明，并额外给一个可见的「命令说明」开关。
         b.title = c.hint || "";
+        b.setAttribute("aria-label", (c.label || c.id) + (c.hint ? "：" + c.hint : ""));
         b.disabled = running || !!state.busy["run:" + c.id];
         b.addEventListener("click", function () {
           state.busy["run:" + c.id] = true;
@@ -796,6 +1169,21 @@
         });
         runBar.appendChild(b);
       });
+
+      // 命令说明开关：把 title 里的说明搬到可见位置
+      if (cmds.length > 0) {
+        var helpBtn = el("button", "lw-btn lw-btn-sm" + (state.helpOpen ? " is-primary" : ""), "?");
+        helpBtn.type = "button";
+        helpBtn.title = d.cmdHelp;
+        helpBtn.setAttribute("aria-label", d.cmdHelp);
+        helpBtn.setAttribute("aria-expanded", state.helpOpen ? "true" : "false");
+        helpBtn.addEventListener("click", function () {
+          state.helpOpen = !state.helpOpen;
+          renderRunBar();
+          renderBody();
+        });
+        runBar.appendChild(helpBtn);
+      }
       var lock = state.data && state.data.lock;
       if (lock && !lock.stale) {
         var q = el("button", "lw-btn");
@@ -879,13 +1267,20 @@
 
     function tabs() {
       var wrap = el("div", "lw-tabs");
+      // 三个分区此前对读屏软件是三个无名按钮，选中态只靠颜色。
+      wrap.setAttribute("role", "tablist");
+      wrap.setAttribute("aria-label", d.ariaTabs);
       [
         ["config", d.tabConfig, "gear"],
         ["tasks", d.tabTasks, "calendar"],
         ["history", d.tabHistory, "clock"]
       ].forEach(function (pair) {
-        var b = el("button", "lw-tab" + (state.tab === pair[0] ? " is-active" : ""));
+        var active = state.tab === pair[0];
+        var b = el("button", "lw-tab" + (active ? " is-active" : ""));
         b.type = "button";
+        b.setAttribute("role", "tab");
+        b.setAttribute("aria-selected", active ? "true" : "false");
+        fk(b, "tab:" + pair[0]);
         b.appendChild(icon(pair[2]));
         b.appendChild(document.createTextNode(pair[1]));
         b.addEventListener("click", function () {
@@ -907,16 +1302,24 @@
      * 表格。紧凑模式下 CSS 会把每行折叠成「标签 : 值」列表，
      * 所以每个 <td> 都带上 data-label（= 对应表头），由 CSS ::before 显示。
      */
-    function table(headers, rows) {
+    function table(headers, rows, rowClasses) {
       var t = el("table", "lw-table");
       var thead = el("thead");
       var tr = el("tr");
-      headers.forEach(function (h) { tr.appendChild(el("th", "", h)); });
+      headers.forEach(function (h) {
+        // scope="col" 让读屏软件把「列」和「单元格」关联起来；
+        // 之前 7 列表格对读屏是一串无语境的数字。
+        var th = el("th", "", h);
+        th.setAttribute("scope", "col");
+        tr.appendChild(th);
+      });
       thead.appendChild(tr);
       t.appendChild(thead);
       var tbody = el("tbody");
-      rows.forEach(function (cells) {
+      rows.forEach(function (cells, ri) {
         var r = el("tr");
+        var rc = rowClasses && rowClasses[ri];
+        if (rc) r.className = rc;
         cells.forEach(function (c, i) {
           var td = el("td");
           var label = headers[i] == null ? "" : String(headers[i]);
@@ -1012,6 +1415,8 @@
         .then(function (r) {
           delete state.busy["cfg:" + k];
           state.editing = null;
+          // 保存后焦点回到该行的「改」按钮，而不是掉回 <body>
+          state.focusAfter = "cfg:" + k + ":edit";
           if (r && r.ok) say(d.restartNeeded, "ok");
           else say(errText(r), "warn");
           refresh();
@@ -1019,6 +1424,7 @@
         .catch(function (e) {
           delete state.busy["cfg:" + k];
           state.editing = null;
+          state.focusAfter = "cfg:" + k + ":edit";
           say(String(e && e.message ? e.message : e), "warn");
           renderBody();
         });
@@ -1061,12 +1467,19 @@
           var attrs = {};
           if (k === "previewOrder" || k === "rulesOrder") { attrs.type = "number"; attrs.min = "0"; attrs.max = "999"; }
           var input = editInput("config", k, state.editing.value, attrs);
+          fk(input, "cfg:" + k + ":input");
           var save = el("button", "lw-btn is-primary lw-btn-sm", d.save);
           save.type = "button";
+          fk(save, "cfg:" + k + ":save");
           save.addEventListener("click", function () { saveConfigKey(k); });
           var cancel = el("button", "lw-btn lw-btn-sm", d.cancel);
           cancel.type = "button";
-          cancel.addEventListener("click", function () { state.editing = null; renderBody(); });
+          fk(cancel, "cfg:" + k + ":cancel");
+          cancel.addEventListener("click", function () {
+            state.editing = null;
+            state.focusAfter = "cfg:" + k + ":edit";
+            renderBody();
+          });
           formNodes.push(formRow(k, input, [state.busy["cfg:" + k] ? el("span", "lw-chip", d.saving) : save, cancel]));
           return;
         }
@@ -1075,6 +1488,7 @@
         var edit = el("button", "lw-btn lw-btn-sm", d.edit);
         edit.type = "button";
         edit.disabled = !!state.busy["cfg:" + k];
+        fk(edit, "cfg:" + k + ":edit");
         edit.addEventListener("click", function () {
           state.editing = { kind: "config", key: k, value: shown };
           renderBody();
@@ -1166,6 +1580,7 @@
             autocomplete: "off",
             spellcheck: false
           });
+          fk(input, "sec:" + it.key + ":input");
           val.appendChild(input);
 
           var skip = document.createElement("input");
@@ -1182,10 +1597,16 @@
 
           var saveBtn = el("button", "lw-btn is-primary lw-btn-sm", d.secSave);
           saveBtn.type = "button";
+          fk(saveBtn, "sec:" + it.key + ":save");
           saveBtn.addEventListener("click", function () { saveSecret(it.key); });
           var cancelBtn = el("button", "lw-btn lw-btn-sm", d.secCancel);
           cancelBtn.type = "button";
-          cancelBtn.addEventListener("click", function () { state.editing = null; renderBody(); });
+          fk(cancelBtn, "sec:" + it.key + ":cancel");
+          cancelBtn.addEventListener("click", function () {
+            state.editing = null;
+            state.focusAfter = "sec:" + it.key + ":set";
+            renderBody();
+          });
           val.appendChild(saveBtn);
           val.appendChild(cancelBtn);
           if (state.busy["sec:" + it.key]) val.appendChild(el("span", "lw-chip", d.secVerifying));
@@ -1201,6 +1622,7 @@
           var setBtn = el("button", "lw-btn lw-btn-sm", it.configured ? d.secChange : d.secSet);
           setBtn.type = "button";
           setBtn.disabled = !!state.busy["sec:" + it.key];
+          fk(setBtn, "sec:" + it.key + ":set");
           setBtn.addEventListener("click", function () {
             state.editing = { kind: "secret", key: it.key, value: "", skipVerify: false };
             renderBody();
@@ -1208,27 +1630,54 @@
           val.appendChild(setBtn);
 
           if (it.configured) {
-            var clearBtn = el("button", "lw-btn lw-btn-sm is-danger", d.secClear);
-            clearBtn.type = "button";
-            clearBtn.disabled = !!state.busy["sec:" + it.key];
-            clearBtn.addEventListener("click", function () {
-              if (!window.confirm(d.secClearing.replace("{k}", it.key))) return;
-              state.busy["sec:" + it.key] = true;
-              renderBody();
-              request(base, "/api/secret", { method: "DELETE", body: JSON.stringify({ key: it.key }) })
-                .then(function (r) {
-                  delete state.busy["sec:" + it.key];
-                  if (r && r.ok) say(d.secCleared, "ok");
-                  else say(errText(r), "warn");
-                  refresh();
-                })
-                .catch(function (e) {
-                  delete state.busy["sec:" + it.key];
-                  say(String(e && e.message ? e.message : e), "warn");
-                  renderBody();
-                });
-            });
-            val.appendChild(clearBtn);
+            if (state.confirmSecret === it.key) {
+              // 清除凭据同样用内联二次确认：window.confirm 在嵌入式 webview 里
+              // 常被宿主拦截，且样式与面板完全脱节。
+              var cf = el("div", "lw-confirm");
+              cf.setAttribute("role", "alertdialog");
+              cf.appendChild(el("span", "lw-confirm-q", d.cfSecretQ.replace("{k}", it.key)));
+              var yes = el("button", "lw-btn lw-btn-sm is-danger-fill", d.cfCompactYes);
+              yes.type = "button";
+              fk(yes, "sec:" + it.key + ":clear-yes");
+              yes.addEventListener("click", function () {
+                state.confirmSecret = "";
+                state.busy["sec:" + it.key] = true;
+                renderBody();
+                request(base, "/api/secret", { method: "DELETE", body: JSON.stringify({ key: it.key }) })
+                  .then(function (r) {
+                    delete state.busy["sec:" + it.key];
+                    if (r && r.ok) say(d.secCleared, "ok");
+                    else say(errText(r), "warn");
+                    refresh();
+                  })
+                  .catch(function (e) {
+                    delete state.busy["sec:" + it.key];
+                    say(String(e && e.message ? e.message : e), "warn");
+                    renderBody();
+                  });
+              });
+              cf.appendChild(yes);
+              var no = el("button", "lw-btn lw-btn-sm", d.cfCompactNo);
+              no.type = "button";
+              fk(no, "sec:" + it.key + ":clear-no");
+              no.addEventListener("click", function () {
+                state.confirmSecret = "";
+                state.focusAfter = "sec:" + it.key + ":clear";
+                renderBody();
+              });
+              cf.appendChild(no);
+              val.appendChild(cf);
+            } else {
+              var clearBtn = el("button", "lw-btn lw-btn-sm is-danger", d.secClear);
+              clearBtn.type = "button";
+              clearBtn.disabled = !!state.busy["sec:" + it.key];
+              fk(clearBtn, "sec:" + it.key + ":clear");
+              clearBtn.addEventListener("click", function () {
+                state.confirmSecret = it.key;
+                renderBody();
+              });
+              val.appendChild(clearBtn);
+            }
           }
         }
         row.appendChild(val);
@@ -1257,6 +1706,7 @@
           delete state.busy["sec:" + k];
           if (r && r.ok) {
             state.editing = null;
+            state.focusAfter = "sec:" + k + ":set";
             say(skipVerify ? d.secSavedNoRestart + "（" + d.secSkipVerify + "）" : d.secSavedNoRestart, "ok");
           } else {
             // 保留编辑态与输入内容，让用户能改一下再试
@@ -1303,7 +1753,11 @@
 
       var bf = state.backfill || (data.embed && data.embed.backfill) || null;
       var running = bf && !bf.finished;
-      var btn = el("button", "lw-btn lw-btn-sm" + (e.keyConfigured ? " is-primary" : ""), running ? d.embBackfilling : d.embBackfill);
+      // 只有「确实还有没向量化的条目」时才把回填做成主按钮。
+      // 此前条件是 keyConfigured（几乎恒真），于是配置页同时出现三个蓝色主按钮，
+      // 谁都不突出——critique 的第 4 条启发式扣分就出在这。
+      var backfillWanted = e.keyConfigured && Number(e.pct || 0) < 100;
+      var btn = el("button", "lw-btn lw-btn-sm" + (backfillWanted ? " is-primary" : ""), running ? d.embBackfilling : d.embBackfill);
       btn.type = "button";
       btn.disabled = running || !e.keyConfigured;
       btn.addEventListener("click", function () { startBackfill(); });
@@ -1343,29 +1797,62 @@
       stats.appendChild(statBox(d.dbSoft, String(Number(e.softDeleted || 0))));
       nodes.push(stats);
 
-      var needCompact = Number(e.freePct || 0) >= 5 || Number(e.softDeleted || 0) > 0;
+      var softDeleted = Number(e.softDeleted || 0);
+      var needCompact = Number(e.freePct || 0) >= 5 || softDeleted > 0;
       var run = state.run || null;
-      var compacting = !!(run && run.command === "compact" && run.running);
+      // 这里原来写的是 run.running —— 而 /api/state 的 run 快照里根本没有 running 字段
+      // （只有 finished），所以 compacting 恒为 false，压实期间按钮不会进入「压实中」。
+      // 同一文件其它两处用的都是 !run.finished，这里跟随。
+      var compacting = !!(run && run.command === "compact" && !run.finished);
 
-      var row = el("div", "lw-form-value");
-      var btn = el("button", "lw-btn lw-btn-sm" + (needCompact ? " is-primary" : ""),
-        compacting ? d.dbCompacting : d.dbCompact);
-      btn.type = "button";
-      btn.disabled = compacting || !needCompact;
-      btn.addEventListener("click", function () {
+      if (state.confirmCompact) {
+        // P1：不可逆动作先变成一个问题。此前点一下就直接 POST 并清掉 325 条。
+        var cf = el("div", "lw-confirm");
+        cf.setAttribute("role", "alertdialog");
+        cf.appendChild(el("span", "lw-confirm-q", d.cfCompactQ.replace("{n}", String(softDeleted || 0))));
+        var yes = el("button", "lw-btn lw-btn-sm is-danger-fill", d.cfCompactYes);
+        yes.type = "button";
+        yes.addEventListener("click", function () {
+          state.confirmCompact = false;
+          doCompact();
+        });
+        cf.appendChild(yes);
+        var no = el("button", "lw-btn lw-btn-sm", d.cfCompactNo);
+        no.type = "button";
+        no.addEventListener("click", function () {
+          state.confirmCompact = false;
+          renderBody();
+        });
+        cf.appendChild(no);
+        nodes.push(cf);
+        nodes.push(el("div", "lw-form-desc", d.cfCompactWhy));
+      } else {
+        var row = el("div", "lw-form-value");
+        var btn = el("button", "lw-btn lw-btn-sm" + (needCompact ? " is-primary" : ""),
+          compacting ? d.dbCompacting : d.dbCompact);
+        btn.type = "button";
+        btn.disabled = compacting || !needCompact;
+        btn.addEventListener("click", function () {
+          // 需要压实才问；没什么可清时按钮本来就是 disabled，不会走到这里
+          state.confirmCompact = true;
+          renderBody();
+        });
+        row.appendChild(btn);
+        if (!needCompact) row.appendChild(el("span", "lw-chip is-ok", d.dbClean));
+        nodes.push(row);
+      }
+
+      nodes.push(el("div", "lw-form-desc", d.dbWhy));
+      box.appendChild(card("db", d.dbTitle, d.dbHint, nodes));
+
+      function doCompact() {
         request(base, "/api/run", { method: "POST", body: JSON.stringify({ command: "compact", by: "panel" }) })
           .then(function (r) {
             if (r && r.ok) { say(d.dbCompacting, "ok"); state.tab = "config"; refresh(); }
             else say(errText(r), "warn");
           })
           .catch(function (err) { say(String(err && err.message || err), "warn"); });
-      });
-      row.appendChild(btn);
-      if (!needCompact) row.appendChild(el("span", "lw-chip is-ok", d.dbClean));
-      nodes.push(row);
-
-      nodes.push(el("div", "lw-form-desc", d.dbWhy));
-      box.appendChild(card("db", d.dbTitle, d.dbHint, nodes));
+      }
     }
 
     function statBox(label, value) {
@@ -1428,7 +1915,9 @@
         box.appendChild(card("calendar", d.tabTasks, "", [el("div", "lw-empty", t.reason || d.windowsOnly)]));
         return;
       }
-      var rows = (t.tasks || []).map(function (task) {
+      // 先产出行对象（cells + 行类），再过滤，最后拆开——
+      // 直接对二维数组 .filter() 会让行类与数据错位。
+      var built = (t.tasks || []).map(function (task) {
         var nameCell = el("div", "lw-name");
         nameCell.appendChild(el("div", "lw-name-main", task.name));
         if (task.desc) nameCell.appendChild(el("div", "lw-name-sub", task.desc));
@@ -1492,13 +1981,30 @@
           actCell.appendChild(toggle);
         }
         var resultChip = el("span", "lw-chip " + (/^成功/.test(String(task.lastResultText || "")) ? "is-ok" : "is-warn"), String(task.lastResultText || "—"));
-        return [nameCell, stateCell, timeCell, task.lastRun || "—", resultChip, task.nextRun || "—", actCell];
+
+        // nextRun：停用的任务不再显示那个假的未来时间（tasks.mjs 已不透出），
+        // 这里显式写「已停用」，否则一列「—」看不出是没排期还是被关了。
+        var nextCell;
+        if (!task.exists) nextCell = el("span", "lw-chip is-warn", d.missing);
+        else if (!task.enabled) nextCell = el("span", "lw-name-sub", d.disabled);
+        else nextCell = el("span", "", task.nextRun || "—");
+
+        // 行类：停用整行压暗（与「已停用」胶囊的红形成一致语义）；
+        // 最近一次结果不是成功时给整行加淡黄底，让失败的行在长表里能被一眼扫到。
+        var rc = "";
+        if (task.exists && !task.enabled) rc = "is-off";
+        else if (task.exists && task.lastResultText && !/^成功/.test(String(task.lastResultText))) rc = "is-stale";
+
+        return { cells: [nameCell, stateCell, timeCell, task.lastRun || "—", resultChip, nextCell, actCell], rc: rc };
       }).filter(function (r) {
-        return matches([r[0].textContent, r[1].textContent, r[3], r[4].textContent, r[5]].join(" "));
+        var c = r.cells;
+        return matches([c[0].textContent, c[1].textContent, c[3], c[4].textContent, c[5].textContent].join(" "));
       });
+      var rows = built.map(function (r) { return r.cells; });
+      var rowClasses = built.map(function (r) { return r.rc; });
       box.appendChild(
         card("calendar", d.tabTasks, t.tasks ? t.tasks.length + " 项" : "", [
-          table([d.name, d.state, d.schedule, d.lastRun, d.lastResult, d.nextRun, d.action], rows),
+          table([d.name, d.state, d.schedule, d.lastRun, d.lastResult, d.nextRun, d.action], rows, rowClasses),
         ]),
       );
     }
@@ -1550,16 +2056,89 @@
       }
 
       var entries = h.entries || [];
-      var erows = entries.filter(function (e) { return matches(e.date + " " + e.summary); }).map(function (e) {
-        var sm = String(e.summary || "");
-        return [e.date, e.kind, sm.length > 150 ? sm.slice(0, 150) + "…" : sm];
+
+      // 每条日志「有没有问题」。log.md 的摘要里 lint 段形如 `0问题/76孤立/0stale`，
+      // 问题数与 stale 数都藏在同一段文本里，必须解析而不是整段当真/假。
+      function entryIssues(e) {
+        var out = [];
+        var lint = String((e.facts && e.facts.lint) || "");
+        var m = lint.match(/(\d+)\s*问题/);
+        if (m && Number(m[1]) > 0) out.push("lint " + m[1]);
+        var s = lint.match(/(\d+)\s*stale/);
+        if (s && Number(s[1]) > 0) out.push("stale " + s[1]);
+        var p = String((e.facts && e.facts.prune) || "");
+        if (p && !/^0/.test(p)) out.push("prune " + p);
+        return out;
+      }
+
+      var allEntries = entries.filter(function (e) { return matches(e.date + " " + e.summary); });
+      var issueCount = allEntries.filter(function (e) { return entryIssues(e).length > 0; }).length;
+      var shown = state.onlyIssues ? allEntries.filter(function (e) { return entryIssues(e).length > 0; }) : allEntries;
+
+      // 只看异常：60 条里绝大多数是常规运行，异常被埋没。
+      var toolRow = el("div", "lw-form-value");
+      var lab = el("label", "lw-switch" + (state.onlyIssues ? " is-on" : ""));
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!state.onlyIssues;
+      cb.addEventListener("change", function () {
+        state.onlyIssues = cb.checked;
+        renderBody();
       });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(
+        " " + d.onlyIssues + (issueCount > 0 ? " (" + issueCount + ")" : "")));
+      toolRow.appendChild(lab);
+
+      // 结构化列：原表 [date, kind, summary] 里 kind 60 条全是 pipeline，零信息量；
+      // 改成 [日期, 指标, 其余说明]，指标用 facts 拆出来的小胶囊。
+      var erows = [];
+      var rowClasses = [];
+      var FACT_ORDER = ["compact", "lint", "sync", "okf", "prune"];
+      shown.forEach(function (e) {
+        var factBox = el("div", "lw-facts");
+        var any = false;
+        FACT_ORDER.forEach(function (k) {
+          if (!e.facts || e.facts[k] == null) return;
+          any = true;
+          var chip = el("span", "lw-chip", k + " " + e.facts[k]);
+          if (k === "lint") {
+            var m = String(e.facts[k]).match(/(\d+)\s*问题/);
+            if (m && Number(m[1]) > 0) chip.className = "lw-chip is-warn";
+          }
+          factBox.appendChild(chip);
+        });
+        if (!any) factBox.appendChild(el("span", "lw-name-sub", "—"));
+        // 摘要列原来取 e.rest，但 log.md 的摘要全是 `key:value` 形式，
+        // rest 恒为空 → 60 行全是「—」，既浪费一列又把剩下五个指标丢了。
+        // 改成把 FACT_ORDER 之外的指标原样列出来。
+        var others = [];
+        Object.keys(e.facts || {}).forEach(function (k) {
+          if (FACT_ORDER.indexOf(k) >= 0) return;
+          others.push(k + " " + e.facts[k]);
+        });
+        var issues = entryIssues(e);
+        var note = others.length ? others.join(" · ") : "";
+        erows.push([e.date, factBox, note || (issues.length ? issues.join(" · ") : "—")]);
+        rowClasses.push(issues.length ? "is-stale" : "");
+      });
+
+      var logBody = [toolRow];
+      if (shown.length === 0) {
+        logBody.push(el("div", "lw-empty", state.onlyIssues ? d.allNormal : d.noMatch));
+      } else {
+        logBody.push(table([d.date, d.facts, d.others], erows, rowClasses));
+      }
       box.appendChild(
-        card("queue", String(h.entryCount || 0) + " " + d.entries, h.logPath || "", [table([d.date, "kind", d.summary], erows)]),
+        card("queue", String(h.entryCount || 0) + " " + d.entries, h.logPath || "", logBody),
       );
     }
 
     function renderBody() {
+      // 全量重建会丢焦点：先记下当前控件键，重建后再找回来。
+      // 只有在焦点确实落在面板内部时才处理，避免把焦点从别处抢过来。
+      var keep = state.focusAfter || (root.contains(document.activeElement) ? focusKeyOf() : "");
+      state.focusAfter = "";
       bodyWrap.textContent = "";
       if (state.error) {
         var ebox = el("div", "lw-empty");
@@ -1576,6 +2155,23 @@
         return;
       }
       bodyWrap.appendChild(tabs());
+      // 命令说明：点运行栏的「?」展开。六个命令的区别此前只写在 title 里，
+      // 触屏与键盘用户永远看不到。
+      if (state.helpOpen) {
+        var cmds = (state.data && state.data.runCommands) || [];
+        if (cmds.length > 0) {
+          var helpBox = el("div", "lw-cmdhelp");
+          helpBox.setAttribute("role", "region");
+          helpBox.setAttribute("aria-label", d.cmdHelp);
+          cmds.forEach(function (c) {
+            var row = el("div", "lw-cmdhelp-row");
+            row.appendChild(el("span", "lw-cmdhelp-name", c.label || c.id));
+            row.appendChild(el("span", "lw-cmdhelp-hint", c.hint || "—"));
+            helpBox.appendChild(row);
+          });
+          bodyWrap.appendChild(helpBox);
+        }
+      }
       var box = el("div", "lw-section lw-stack");
       try {
         if (state.tab === "config") renderConfig(box);
@@ -1586,6 +2182,7 @@
         box.appendChild(el("div", "lw-empty", d.error + ": " + String(e && e.message ? e.message : e)));
       }
       bodyWrap.appendChild(box);
+      if (keep) restoreFocus(keep);
     }
 
     function refresh() {
@@ -1599,12 +2196,14 @@
           } else {
             state.error = "";
             state.data = r;
+            state.health = computeHealth();
             if (r.run && !r.run.finished) {
               state.run = r.run;
               startRunPoll();
             }
           }
           renderRunBar();
+          renderHealth();
           renderBody();
           renderFoot();
           applyState();
@@ -1618,6 +2217,34 @@
     }
 
     btnRefresh.addEventListener("click", function () { say(""); refresh(); });
+
+    // Esc 退出编辑 / 取消二次确认（P3）。此前编辑态只能靠鼠标点「取消」离开，
+    // 键盘用户按 Esc 毫无反应——而 Esc 是所有桌面软件里「取消」的通用键。
+    function onKeyDown(ev) {
+      if (!ev || (ev.key !== "Escape" && ev.key !== "Esc")) return;
+      if (state.confirmSecret) {
+        var back = "sec:" + state.confirmSecret + ":clear";
+        state.confirmSecret = "";
+        state.focusAfter = back;
+        renderBody();
+        ev.stopPropagation();
+        return;
+      }
+      if (state.confirmCompact) {
+        state.confirmCompact = false;
+        renderBody();
+        ev.stopPropagation();
+        return;
+      }
+      if (state.editing) {
+        var was = state.editing.kind === "config" ? "cfg:" + state.editing.key + ":edit" : "";
+        state.editing = null;
+        state.focusAfter = was;
+        renderBody();
+        ev.stopPropagation();
+      }
+    }
+    root.addEventListener("keydown", onKeyDown);
 
     renderBody();
     refresh();
@@ -1635,6 +2262,8 @@
       destroy: function () {
         stopPoll();
         stopBackfillPoll();
+        try { root.removeEventListener("keydown", onKeyDown); } catch (e) {}
+        try { if (ro) ro.disconnect(); } catch (e) {}
         try { root.textContent = ""; } catch (e) {}
       }
     };
