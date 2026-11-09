@@ -27,6 +27,8 @@ const tabArg = (process.argv.slice(2).find((a) => a.startsWith("--tab=")) || "")
 const confirmArg = process.argv.includes("--confirm");
 // --profile=unknown：截「判不出当前 profile」这个状态（0.13.6）
 const profileArg = (process.argv.slice(2).find((a) => a.startsWith("--profile=")) || "").slice(10);
+// --vault=missing|nowiki|nopages：截「vault 不可用」这个状态（0.13.7）
+const vaultArg = (process.argv.slice(2).find((a) => a.startsWith("--vault=")) || "").slice(8);
 
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8" };
 
@@ -88,11 +90,12 @@ function pageUrl(w) {
   if (tabArg) q.push("tab=" + tabArg);
   if (confirmArg) q.push("confirm=1");
   if (profileArg) q.push("profile=" + profileArg);
+  if (vaultArg) q.push("vault=" + vaultArg);
   return "http://127.0.0.1:" + port + "/" + (q.length ? "?" + q.join("&") : "");
 }
 
 for (const w of widths) {
-  const file = join(OUT, "w" + w + (tabArg ? "-" + tabArg : "") + (confirmArg ? "-confirm" : "") + (profileArg ? "-" + profileArg : "") + ".png");
+  const file = join(OUT, "w" + w + (tabArg ? "-" + tabArg : "") + (confirmArg ? "-confirm" : "") + (profileArg ? "-" + profileArg : "") + (vaultArg ? "-vault-" + vaultArg : "") + ".png");
   const common = [
     "--headless=new",
     "--disable-gpu",

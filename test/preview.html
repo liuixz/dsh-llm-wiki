@@ -80,6 +80,26 @@
     }, 200);
   }
 
+  // ?vault=missing|nowiki|nopages → 模拟「vault 不可用」（0.13.7 新增状态）。
+  // 这些状态以前是静默的：collectPages() 跳过不存在的目录，页面数渲染成一排 0，
+  // 然后点「全量」崩在 wiki/index.md 的 ENOENT 上。现在面板要先把话说出来。
+  const vaultState = new URLSearchParams(location.search).get("vault");
+  if (vaultState) {
+    setTimeout(function () {
+      const fx = window.__FIXTURE__;
+      const v = (fx.vault || "D:\\vault\\LLM-Wiki").replace(/\/+$/, "");
+      fx.vaultProbe = {
+        ok: false,
+        state: vaultState,
+        vault: v,
+        wikiPath: v + "\\wiki",
+        pages: 0,
+        pageDirs: vaultState === "nopages" ? 2 : 0
+      };
+      h.refresh();
+    }, 200);
+  }
+
   // 量一下：容器宽度、是否进了紧凑模式、文档有没有横向溢出，以及溢出的元凶
   setTimeout(function () {
     const root = document.getElementById("root");

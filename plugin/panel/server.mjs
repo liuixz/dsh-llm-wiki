@@ -19,7 +19,7 @@
  * 写入路径一律经过 config.mjs / secret.mjs / tasks.mjs，本文件只做参数校验与 JSON 包装。
  * 凭据接口与 reveal 限定回环来源（ADR-0004）。
  */
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -90,6 +90,66 @@ function healthPath() {
   return join(home, "bin", "pipeline-health.mjs");
 }
 
+/**
+ * vault 体检：面板点「全量」前就应该知道 vault 是否可用。
+ *
+ * 为什么放在面板而不是只靠管线预检：管线预检只能在**跑完之后**把错误说清楚，
+ * 而用户在面板上看到的应该是一进门就有的红灯，不是点了按钮才发现。
+ * 状态与 scripts/llm-wiki-pipeline.mjs 的 preflightVault() 一一对应，两边判据保持一致。
+ */
+function probeVault(vault) {
+  const out = { ok: false, state: "unknown", vault: vault || "", wikiPath: "", pages: 0, pageDirs: 0 };
+  if (!vault) {
+    out.state = "novault";
+    return out;
+  }
+  out.wikiPath = join(vault, "wiki");
+  if (!existsSync(vault)) {
+    out.state = "missing";
+    return out;
+  }
+  try {
+    if (!statSync(vault).isDirectory()) {
+      out.state = "notdir";
+      return out;
+    }
+  } catch {
+    out.state = "missing";
+    return out;
+  }
+  if (!existsSync(out.wikiPath)) {
+    out.state = "nowiki";
+    return out;
+  }
+  // 有 wiki/ 也要看里面到底有没有页：空目录会让管线安静地「重建」一个空索引。
+  let pages = 0;
+  let dirs = 0;
+  try {
+    for (const e of readdirSync(out.wikiPath, { withFileTypes: true })) {
+      if (!e.isDirectory()) {
+        if (e.name.endsWith(".md") && e.name !== "index.md") pages++;
+        continue;
+      }
+      dirs++;
+      let inner = [];
+      try {
+        inner = readdirSync(join(out.wikiPath, e.name));
+      } catch {
+        continue;
+      }
+      for (const f of inner) if (f.endsWith(".md") && f !== "index.md") pages++;
+    }
+  } catch {
+    out.state = "unreadable";
+    return out;
+  }
+  out.pages = pages;
+  out.pageDirs = dirs;
+  out.state = pages > 0 ? "ok" : "nopages";
+  out.ok = out.state === "ok";
+  return out;
+}
+
 function json(res, code, body) {
   const text = JSON.stringify(body);
   res.writeHead(code, {
@@ -158,6 +218,9 @@ function publicState(ctx) {
   return {
     ok: true,
     vault,
+    // vault 是否真的能用（存在 / 有 wiki/ / 里面有页）。前端据此出红灯，
+    // 而不是等用户点了「全量」才在输出里看到一个 ENOENT 堆栈。
+    vaultProbe: probeVault(vault),
     profile,
     platform: process.platform,
     windows: IS_WINDOWS,

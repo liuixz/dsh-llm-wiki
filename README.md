@@ -118,7 +118,9 @@ dsh plugin --profile desktop add github:iwtown/dsh-llm-wiki
 
 界面代码只有一份（`web/panel.js`），降级路径：座位挂不上时，仍可用浏览器直接打开 `http://127.0.0.1:<webServer 端口>/llm-wiki-panel/?tab=tasks`（`?tab=config|tasks|history` 可直达某张表）。
 
-打开后先看**顶部健康横幅**：它按三态（正常 / 需留意 / 正在腐化）告诉你知识库当前到底什么状态，判据是「计划任务有没有被停用 → 最新日志有多旧 → 最近一次 lint / 探针 / 向量覆盖」。点「为什么？」展开逐条依据。旁边那个绿色胶囊说的是另一件事——面板这一秒忙不忙。
+打开后先看**顶部健康横幅**：它按三态（正常 / 需留意 / 正在腐化）告诉你知识库当前到底什么状态，判据是「vault 能不能用 → 计划任务有没有被停用 → 最新日志有多旧 → 最近一次 lint / 探针 / 向量覆盖」。点「为什么？」展开逐条依据。旁边那个绿色胶囊说的是另一件事——面板这一秒忙不忙。
+
+vault 那条排在最前：**路径填错、换机器没同步、`wiki/` 里一页都没有**，横幅都会变红并把话说明白，右侧按钮按原因跳到该去的地方（vault 问题去「配置项」，任务问题去「计划任务」）。这是 0.13.7 加的——在那之前，坏 vault 会先渲染成一排「页面数 0 / 问题 0 / 孤立 0」，等用户点「全量」时才崩在 `ENOENT ... wiki\index.md` 上。
 
 | 区域 | 能做什么 |
 |---|---|
@@ -139,7 +141,7 @@ dsh plugin --profile desktop add github:iwtown/dsh-llm-wiki
 
 > 面板是**可选组件**：不想用就把 `package.json` 里的 `dsh.client` 与 `exports["./client"]` 去掉、删掉 `lib/` 与 `web/`，插件其余功能不受影响。
 
-设计取舍见 `docs/adr/0001-panel-as-client-plugin.md`；写入哪一层见 `0002-config-write-target.md`；锁的语义见 `0003-pipeline-mutex.md`；凭据为何与配置项分开见 `0004-secret-config.md`；存储为什么这么大见 `0005-memory-footprint.md`；面板如何保证不说假话见 `0006-panel-truthfulness.md`；panel 怎么判定「我在哪个 profile」见 `0007-profile-detection.md`；术语见 `GLOSSARY.md`。
+设计取舍见 `docs/adr/0001-panel-as-client-plugin.md`；写入哪一层见 `0002-config-write-target.md`；锁的语义见 `0003-pipeline-mutex.md`；凭据为何与配置项分开见 `0004-secret-config.md`；存储为什么这么大见 `0005-memory-footprint.md`；面板如何保证不说假话见 `0006-panel-truthfulness.md`；panel 怎么判定「我在哪个 profile」见 `0007-profile-detection.md`；vault 坏了为什么先预检见 `0008-vault-preflight.md`；术语见 `GLOSSARY.md`。
 
 ## 管线命令
 
@@ -228,7 +230,7 @@ node <仓库>/scripts/profile-distill.mjs --since 30d    # 复核 → 候选 →
 | 画像候选精度 / gold 覆盖 | ≥75% / ≥75% |
 | 健康探针 hit@3 | 6/6 |
 
-本地验收：`npm test` 跑四件事——`test/profile-detect.mjs`（profile 判定 16 项，用临时 `DSH_HOME` 造多 profile 布局）、`test/panel-e2e.mjs`（假 DOM 真跑 `web/panel.js`，52 项断言）、`scripts/eval-profile.mjs`（画像抽取 13 项）、`scripts/eval-retrieval.mjs`（检索 6 项）。界面的布局问题假 DOM 看不出来，再跑 `node test/shot.mjs 1200 900 420`（可加 `--tab=tasks|history`、`--confirm`、`--profile=unknown`）用真 Chrome 截图到 `test/shots/` 并打印 `compact` 是否触发、有没有横向溢出。
+本地验收：`npm test` 跑四件事——`test/profile-detect.mjs`（profile 判定 16 项，用临时 `DSH_HOME` 造多 profile 布局）、`test/panel-e2e.mjs`（假 DOM 真跑 `web/panel.js`，57 项断言）、`scripts/eval-profile.mjs`（画像抽取 13 项）、`scripts/eval-retrieval.mjs`（检索 6 项）。界面的布局问题假 DOM 看不出来，再跑 `node test/shot.mjs 1200 900 420`（可加 `--tab=tasks|history`、`--confirm`、`--profile=unknown`、`--vault=missing|nowiki|nopages`）用真 Chrome 截图到 `test/shots/` 并打印 `compact` 是否触发、有没有横向溢出。
 
 ## 排错
 
@@ -268,6 +270,7 @@ dsh-llm-wiki/
 
 ## 版本
 
+- `0.13.7`：修「点『全量』崩在 `ENOENT ... wiki\index.md`」。两处叠加：①`scripts/llm-wiki-pipeline.mjs` 写顶层索引前**没有 `mkdirSync(WIKI)`**，而同文件的 `rebuildCategoryIndexes()` 一直有——分类索引会建目录、顶层不会，只有 `wiki/` 不存在时才暴露；②`collectPages()` 对不存在的目录**静默跳过**，坏 vault 先渲染成 `页面数: 0 / 问题: 0 / 孤立: 0`，让用户先放心再吃一段堆栈。修法：①`body()` 在收集页面之前跑 `preflightVault()`（仅对需要页面的子命令），vault 不存在 / 不是目录 / 没有 `wiki/` 三种各有各的说法，**退出码 2 与「跑起来之后才出错」的 exit 1 分开**；②`--index` 前补 `mkdirSync`；③面板新增 `probeVault()`，随 `/api/state` 返回 `vaultProbe`（`novault/missing/notdir/nowiki/unreadable/nopages/ok`），作为健康横幅的**第 1 条判据**（排在任务之前），`bad` 级；④横幅的「去」按钮**按原因跳转**——vault 问题去「配置项」，任务问题才去「计划任务」（原来硬编码 tasks，等于把用户从坑边推到另一个坑）；⑤`nopages`（`wiki/` 在但零页）与 `missing` 文案分开，因为改法完全相反。端到端探针 52 → **57 项**，新增 8e 段专盯 vault 坏掉这个状态；`test/preview.html` 加 `?vault=`、`test/shot.mjs` 加 `--vault=` 以便截真图。
 - `0.13.6`：修「面板读错 profile」——在别人的机器上，装好插件、在面板里改配置，改完不生效，因为写进的是**另一个 profile** 的 `cordis.patch.yml`。根因是 `detectProfile()` 里一句 `if (hits.includes("desktop")) return "desktop"`：`DSH_PROFILE` 只注入给模型 shell 调用（插件进程拿不到），按文本扫 `package.json` 又分不清「真装」与「符号链接借用」，最后硬编码兜底 desktop → **任何机器都判成 desktop**。修法：①四级链——env → **`ctx.profileContext.name`（DSH 提供的运行时真值，插件进程里唯一权威来源）** → `desktop-next.json` 的 `active` → 扫目录但用 realpath 排除借用（链接落在 `profiles/<别的>/` 内才算别人的，`link:D:/project/...` 这种工作区安装算自己的），都不成立返回 **null**（两个 profile 都真装了也返回 null，以前取字典序第一个等于掷骰子）；②null 一路传到底——真源层 `path` 留空并标 `unresolvable`、`writeConfigKey(null)` 直接抛错拒写、`/api/config` POST 返回 **409 + `PROFILE_UNKNOWN`**、面板显示「判不出 profile」并把原因摆出来；③面板 startRun 的 `spawn` env 补 `LLM_WIKI_VAULT: currentVault()`（原来只传 `LLM_WIKI_PANEL`，管线靠自己的 win32 兜底路径，可能和面板显示的 vault 不一致）。新增 `test/profile-detect.mjs` 16 项；端到端探针 44 → **52 项**，新增一整段专盯「判不出 profile」这个状态（页面写明、真源层路径是 `—` 不是 `profiles/null`、四个「改」按钮被按住且带 `title`）——这种状态最容易做成静默错误。
 - `0.13.5`：`/impeccable polish` 一轮精修。都是 0.13.4 之后仍然存在的小毛病：①`fmtTime()` 只有定义零调用（死代码）——改为在输出面板显示运行开始时间，长时间运行里这条信息是刚需；`--lw-r-lg` 与 `--lw-shadow-2` 两个令牌定义了零引用，删掉。②`--lw-fg-3` 回退色 `#7d8590` 白底实测只有 **3.73:1**，而这一档被 `.lw-sub`/`.lw-card-hint`/`.lw-form-desc`/`.lw-empty`/`.lw-stat-k` 等 11–12px 小字大量使用——浅色改 `#667085`（4.97:1）、深色改 `#8b949e`（`--lw-bg-2` 上 5.26:1）。③任务表「上次运行」直接输出 PowerShell 区域化格式 `10/31/2026 02:50:50`，与页面其它 ISO 日期并存，新增 `fmtLocal()` 归一为 `2026-10-31 02:50`（解析失败原样返回）。④层表搜索过滤写 `matches(r.join(" "))` 而 `r` 含 DOM 节点 → `[object HTMLSpanElement]`，按状态文字搜必然零命中；⑤`renderEmbed`/`renderStorage` 搜索无匹配时整卡消失（用户以为被删），改为留「已按搜索过滤」空态；⑥「?」展开时加 `is-primary` 变成第二个蓝色主按钮，改用新增 `.lw-btn.is-on`。⑦刷新毫无反馈 → 顶栏「加载中…」+ 按钮旋转并禁用；搜索框 `Esc` 清空。⑧紧凑模式触控目标 28/24px 太薄，抬到 32/28px；「计划」列文字与「改」按钮糊成一串，补 2px 分隔。端到端探针 40 → **44 项**。
 - `0.13.4`：面板说真话。一次 `/impeccable critique` 给 `web/panel.js` 打 **17/40**，最差三项「系统状态可见性 1 分 / 错误预防 1 分 / 帮助文档 1 分」，追下去全是**面板在骗人**：①五个计划任务全 `Disabled` 时顶栏仍是绿灯「● 空闲」（`applyState()` 只看 `run` 与 `lock`），新增独立的**健康三态横幅**（`ok`/`warn`/`bad`，判据：任务停用 → 日志 ≥3/≥7 天 → `lintIssues` → 探针命中 → 向量覆盖），带「为什么？」展开依据，与顶栏胶囊并存（胶囊说「这一秒忙不忙」，横幅说「知识库健不健康」）；②`Get-ScheduledTaskInfo` 对停用任务仍返回 `NextRunTime`，面板照抄成「下次运行 11/09」而它永远不会跑——`tasks.mjs` 改为先算 `enabled` 常量再决定是否透出，任务页对停用行显示「已停用」并整行灰化；③「压实记忆库」不可逆却零确认——改为卡片内联二次确认（`role="alertdialog"` + 红色填充按钮，`Esc` 可退，**不用 `window.confirm`**：嵌入式 webview 常被宿主拦截，拦了就是静默执行），清除凭据同模式；顺带修掉引用不存在的 `run.running`（`/api/state` 的 run 快照只有 `finished`，导致压实期间按钮从不进 loading）。历史页开始吃 `facts`（此前 UI 里 grep 0 命中）：列改 `[日期, 指标, 其它指标]`、删掉 60 行全是 `pipeline` 的 `kind` 列、指标渲染成 `compact/lint/sync/okf/prune` 胶囊、新增「只看异常」开关（60 条里 5 条）。`compact: false` 写死在 `lib/client.js` 与 `web/panel.html` 导致 30 行降级样式从未生效（420px 实测工具栏被裁到 5 个半按钮）→ 改 `ResizeObserver` 自适应（<560px 进紧凑），调用方传布尔则听它。无障碍：`tablist`/`tab` + `aria-selected`、`th[scope=col]`、`data-fk` 焦点保持（重绘后回到原控件）、`Esc` 退出、运行栏「?」展开命令说明（此前只在 `title`）。同屏只留一个主按钮（回填向量仅 `pct<100` 时为主）。另补 `--lw-fg-4` 令牌与 `spark` 图标（都引用了却从未定义）。决策记入 `docs/adr/0006-panel-truthfulness.md`，端到端探针 40 项全过。

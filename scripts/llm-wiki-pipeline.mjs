@@ -1408,12 +1408,45 @@ function appendLog(entry) {
   } catch {}
 }
 
+/**
+ * vault 预检：vault 路径填错时，绝不能让管线先打一排 0 再崩在 writeFileSync 的堆栈上。
+ * collectPages() 对不存在的目录是静默跳过的，所以「页面数: 0」本身看起来像正常结果。
+ * 这里在真正干活之前把话说清楚，并给可执行的下一步。
+ * 返回 null 表示通过；返回 string 表示要中止（文案已含提示）。
+ */
+function preflightVault() {
+  const needPages = RUN.lint || RUN.index || RUN.sync || RUN.usage || RUN.okf || RUN.compilePatterns;
+  if (!needPages) return null;
+  if (!existsSync(VAULT)) {
+    return "vault 目录不存在：" + VAULT +
+      "\n这通常是 vault 路径填错了，或换机器后还没同步这个知识库。" +
+      "\n改法：面板「配置项」里把 vault 改成实际路径；或先把这个仓库 clone 下来。";
+  }
+  let isDir = false;
+  try { isDir = statSync(VAULT).isDirectory(); } catch {}
+  if (!isDir) return "vault 路径不是目录：" + VAULT;
+  if (!existsSync(WIKI)) {
+    return "vault 里没有 wiki/ 子目录：" + WIKI +
+      "\n这个 vault 可能是空的，或者指向了一个不是 LLM-Wiki 的目录。" +
+      "\n正常结构是 <vault>/wiki/<分类>/*.md。请到面板「配置项」核对 vault。";
+  }
+  return null;
+}
+
 async function body() {
   console.log("LLM-Wiki pipeline | vault:", VAULT);
   if (DO_RATE) {
     const r = ratePage(RATE_TARGET, RATE_VALUE);
     console.log("\n== rate ==\n", JSON.stringify(r));
     if (r.ok && !DRY) appendLog("rate:" + RATE_TARGET + "=" + RATE_VALUE);
+    return;
+  }
+  const vaultProblem = preflightVault();
+  if (vaultProblem) {
+    console.error("\n== vault 预检未通过 ==");
+    console.error(vaultProblem);
+    // 2 而不是 1：与「跑起来之后出错」区分开，面板/脚本据此可以说「先去配 vault」。
+    process.exitCode = 2;
     return;
   }
   const pages = collectPages();
@@ -1442,6 +1475,9 @@ async function body() {
   if (RUN.index) {
     const md = rebuildIndex(pages);
     if (!DRY) {
+      // 兜底建目录：rebuildCategoryIndexes() 一直有 mkdir（分类索引页会建 wiki/<分类>/），
+      // 但顶层 wiki/index.md 这里漏了，vault 里没有 wiki/ 时直接 ENOENT 堆栈。
+      mkdirSync(WIKI, { recursive: true });
       writeFileSync(join(WIKI, "index.md"), md);
       const catIdx = rebuildCategoryIndexes(pages);
       console.log("\n== index ==\n已重建 wiki/index.md");

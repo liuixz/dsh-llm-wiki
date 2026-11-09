@@ -447,6 +447,50 @@ await new Promise((r) => setTimeout(r, 40));
 check("profile 恢复后解释卡消失", find(root, "lw-profwarn").length === 0,
   "count=" + find(root, "lw-profwarn").length);
 
+// 8e) vault 不可用（0.13.7）：用户点「全量」报 ENOENT 之前，面板就该先红
+// 背景：collectPages() 对不存在的目录静默跳过，于是坏 vault 先渲染成一排 0，
+// 然后崩在 writeFileSync(join(WIKI,"index.md")) 的堆栈里。现在服务端先探一次，
+// 前端据此出红灯，并且「去」按钮要指向配置项而不是任务页。
+const savedProbe = realState.vaultProbe;
+realState.vaultProbe = {
+  ok: false,
+  state: "missing",
+  vault: "D:\\vault\\LLM-Wiki",
+  wikiPath: "D:\\vault\\LLM-Wiki\\wiki",
+  pages: 0,
+  pageDirs: 0
+};
+await handle.refresh();
+await new Promise((r) => setTimeout(r, 40));
+const vb = find(root, "lw-health")[0];
+check("vault 坏了健康横幅是 bad", !!vb && vb.classList.contains("is-bad"), vb ? vb.className : "no banner");
+const vbText = vb ? vb.textContent : "";
+check("横幅写明 vault 目录不存在", /vault/i.test(vbText) && /不存在/.test(vbText), vbText);
+// 指错页面等于把用户从坑边推到另一个坑：vault 问题要去配置项，不是任务页
+const vbBtns = vb ? texts(vb) : [];
+check("vault 坏时「去」按钮指向配置项",
+  vbBtns.indexOf(d.hGoConfig) >= 0 && vbBtns.indexOf(d.hGoTasks) < 0, vbBtns.join("|"));
+
+// 另一档：vault 在、wiki/ 也在，但一页都没有（装完没导入 / 指错目录）
+realState.vaultProbe = {
+  ok: false,
+  state: "nopages",
+  vault: "D:\\vault\\LLM-Wiki",
+  wikiPath: "D:\\vault\\LLM-Wiki\\wiki",
+  pages: 0,
+  pageDirs: 2
+};
+await handle.refresh();
+await new Promise((r) => setTimeout(r, 40));
+const vb2 = find(root, "lw-health")[0];
+check("空 vault 也是 bad", !!vb2 && vb2.classList.contains("is-bad"), vb2 ? vb2.className : "no banner");
+check("空 vault 的文案与「不存在」区分开",
+  vb2 && /一页都没有/.test(vb2.textContent) && !/不存在/.test(vb2.textContent), vb2 ? vb2.textContent : "");
+
+realState.vaultProbe = savedProbe;
+await handle.refresh();
+await new Promise((r) => setTimeout(r, 40));
+
 // 9) 销毁
 handle.destroy();
 check("destroy 清空 root", root.children.length === 0);

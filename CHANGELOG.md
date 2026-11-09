@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.13.7 — 2026-11-09
+
+**「全量」在新装的机器上崩了：`ENOENT ... wiki\index.md`。**
+错不在 vault，在代码——它先让坏 vault 一路静悄悄地渲染成一排「0」，再在写索引时撞墙。
+
+### 复现与根因
+
+报错来自另一台机器（`C:\Users\17148`，profile `tctwork`），原文：
+
+```
+LLM-Wiki pipeline | vault: D:/学习/AI知识库/LLM-Wiki
+页面数: 0
+== lint ==
+问题: 0 | 孤立节点: 0 | stale: 0
+按类型: {}
+pipeline 失败: Error: ENOENT: no such file or directory, open '...\LLM-Wiki\wiki\index.md'
+```
+
+三种 vault 状态实测（`--all --no-lock`）：
+
+| vault 状态 | 结果 |
+|---|---|
+| 目录完全不存在 | `页面数: 0` → `ENOENT wiki\index.md`，exit 1 |
+| 目录在、没有 `wiki/` | 同上，exit 1 |
+| `wiki/` 在、内容为空 | `已重建 wiki/index.md`，**exit 0** |
+
+逐个子命令扫一遍，只有 `--index` 会崩，其余八个都 exit 0。
+
+两处叠加：
+
+1. **`scripts/llm-wiki-pipeline.mjs` 写顶层索引前没有建目录。** `writeFileSync(join(WIKI, "index.md"), md)` 直接落盘；而同一文件里的 `rebuildCategoryIndexes()` 一直是 `mkdirSync(dir, {recursive:true})` 之后才写的——**分类索引会建目录，顶层索引不会**，只有 `wiki/` 恰好不存在时才暴露。
+2. **`collectPages()` 对不存在的目录是静默跳过。** 它 `existsSync(dir) && isDirectory()` 不成立就不走进去，vault 坏了返回空数组、`页面数: 0`、lint 三项全 0，**不报错**。于是用户先看到一排「一切正常」，再看到一段堆栈——最糟的信息顺序。
+
+### 修法一：先预检，说人话，exit 2
+
+`body()` 在 `collectPages()` 之前调用新的 `preflightVault()`，仅对需要页面的子命令生效（`--lint / --index / --sync / --usage / --okf / --compile-patterns`）。三种不通过各有各的说法：
+
+- vault 不存在 → 「这通常是 vault 路径填错了，或换机器后还没同步这个知识库。改法：面板「配置项」里把 vault 改成实际路径；或先把这个仓库 clone 下来。」
+- vault 不是目录 → 直接照实说。
+- 没有 `wiki/` 子目录 → 「这个 vault 可能是空的，或者指向了一个不是 LLM-Wiki 的目录。正常结构是 `<vault>/wiki/<分类>/*.md`。」
+
+退出码 **2**，与「跑起来之后才出错」的 exit 1 区分开——脚本和计划任务能据此判断是配置问题还是运行问题。
+
+### 修法二：写索引前补 mkdir
+
+`--index` 那段前面加 `mkdirSync(WIKI, { recursive: true })`。即便预检被绕过（比如将来有人关掉预检），也不会再撞 ENOENT。
+
+### 修法三：面板在用户点下去之前就知道 vault 坏了
+
+新增 `plugin/panel/server.mjs` 的 `probeVault(vault)`，随 `/api/state` 一起返回 `vaultProbe`：`state` 取值 `novault / missing / notdir / nowiki / unreadable / nopages / ok`，另有 `pages`（页面数）与 `pageDirs`（分类目录数）。只扫 `wiki/` 一层，状态与管线的 `preflightVault()` 一一对应。
+
+前端把它作为 `computeHealth()` 的**第 1 条判据**（排在计划任务之前），`bad` 级，文案按 state 分六种。这里的细节是**动作按钮按原因跳转**：
+
+- vault 坏 → 「去配置项」（`state.tab = "config"`）
+- 任务停用 → 「去任务页」（原来的硬编码）
+
+指错页面等于把用户从坑边推到另一个坑里。
+
+`nopages`（`wiki/` 在但一页都没有）单独给了文案：「可能装完还没导入页面，或指向了一个不是 LLM-Wiki 的目录」——它和「目录不存在」的改法完全不同，混成一句会让用户去查一个没填错的路径。
+
+### 顺带
+
+- `test/panel-e2e.mjs` 52 → **57 项**：新增 8e 段验 vault 坏掉这个状态本身——横幅 `is-bad`、文案写明「不存在」、按钮指向配置项且**不出现**「去任务页」、`nopages` 与 `missing` 文案互相排斥。
+- `test/preview.html` 加 `?vault=missing|nowiki|nopages`、`test/shot.mjs` 加 `--vault=<state>`，真图验收时能直接看到红灯。
+- `plugin/panel/server.mjs` 的 `node:fs` import 补 `readdirSync` / `statSync`。
+
 ## 0.13.6 — 2026-11-09
 
 **面板在别人的机器上读错了 profile：它一直以为自己在 desktop 里跑。**

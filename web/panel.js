@@ -605,6 +605,16 @@
       hShowWhy: "为什么？",
       hHideWhy: "收起",
       hGoTasks: "去任务页",
+      hGoConfig: "去配置项",
+      hVault: "vault 不可用：{path}",
+      hVaultUnset: "还没设置 vault 路径",
+      hVaultMissing: "vault 目录不存在：{path}",
+      hVaultNoWiki: "vault 里没有 wiki/ 子目录：{path}",
+      hVaultNoPages: "vault 里一页都没有：{path}",
+      hVaultNotDir: "vault 路径不是目录：{path}",
+      hVaultUnreadable: "vault 读不了：{path}",
+      hVaultWhy: "路径填错，或换机器后还没同步这个知识库。点「去配置项」改成实际路径。",
+      hVaultNoPagesWhy: "wiki/ 是空的。可能装完还没导入页面，或指向了一个不是 LLM-Wiki 的目录。",
       hBecause: "依据",
       /* --- 内联二次确认（P1） --- */
       cfCompactQ: "清除 {n} 条已删条目并压实？",
@@ -746,6 +756,16 @@
       hShowWhy: "Why?",
       hHideWhy: "Hide",
       hGoTasks: "Open tasks",
+      hGoConfig: "Open config",
+      hVault: "Vault unusable: {path}",
+      hVaultUnset: "No vault path set",
+      hVaultMissing: "Vault directory does not exist: {path}",
+      hVaultNoWiki: "Vault has no wiki/ subdirectory: {path}",
+      hVaultNoPages: "Vault has no pages: {path}",
+      hVaultNotDir: "Vault path is not a directory: {path}",
+      hVaultUnreadable: "Vault is unreadable: {path}",
+      hVaultWhy: "Wrong path, or this knowledge base was not synced to this machine. Use Open config to fix it.",
+      hVaultNoPagesWhy: "wiki/ is empty. Either nothing was imported yet, or the path is not an LLM-Wiki vault.",
       hBecause: "Detail",
       /* --- inline confirm (P1) --- */
       cfCompactQ: "Purge {n} deleted entries and vacuum?",
@@ -1060,7 +1080,27 @@
       var reasons = [];
       var level = "ok";
 
-      // 1) 计划任务：停用 / 未注册。这是最硬的一条——任务停了，后面全都不会发生。
+      // 1) vault 本身能不能用。这条排在最前面：vault 坏了，后面所有指标都是空的，
+      //    「任务停用」「历史陈旧」这类判断也就失去意义。用户点「全量」时最可能撞上的
+      //    就是这个（路径填错 / 换机器没同步 / 装完还没初始化）。
+      var vp = data.vaultProbe || null;
+      if (vp && vp.state !== "ok" && vp.state !== "unknown") {
+        var vpText = d.hVault;
+        if (vp.state === "missing") vpText = d.hVaultMissing;
+        else if (vp.state === "nowiki") vpText = d.hVaultNoWiki;
+        else if (vp.state === "nopages") vpText = d.hVaultNoPages;
+        else if (vp.state === "notdir") vpText = d.hVaultNotDir;
+        else if (vp.state === "unreadable") vpText = d.hVaultUnreadable;
+        else if (vp.state === "novault") vpText = d.hVaultUnset;
+        reasons.push({
+          text: vpText.replace("{path}", vp.vault || "—"),
+          level: "bad",
+          detail: vp.state === "nopages" ? d.hVaultNoPagesWhy : d.hVaultWhy,
+          scope: "config",
+        });
+      }
+
+      // 2) 计划任务：停用 / 未注册。这是最硬的一条——任务停了，后面全都不会发生。
       if (data.tasks && data.tasks.available) {
         var off = tasks.filter(function (t) { return t.exists && !t.enabled; });
         var gone = tasks.filter(function (t) { return !t.exists; });
@@ -1177,10 +1217,17 @@
       if (h.level === "bad") {
         // 这里刻意不用 is-primary：同屏已经有一个主行动（运行栏的「全量」），
         // 再加一个同色主按钮就互相抵消了——critique 记的就是这一点。
-        var go = el("button", "lw-btn", d.hGoTasks);
+        // 落点由第一条 bad 原因决定：vault 坏了去配置项，任务停了去任务页。
+        // 指错页面等于把用户从坑边推到另一个坑里。
+        var firstBad = null;
+        for (var bi = 0; bi < h.reasons.length; bi++) {
+          if (h.reasons[bi].level === "bad") { firstBad = h.reasons[bi]; break; }
+        }
+        var goScope = (firstBad && firstBad.scope) || "tasks";
+        var go = el("button", "lw-btn", goScope === "config" ? d.hGoConfig : d.hGoTasks);
         go.type = "button";
         go.addEventListener("click", function () {
-          state.tab = "tasks";
+          state.tab = goScope;
           state.editing = null;
           renderBody();
         });
