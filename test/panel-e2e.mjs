@@ -398,6 +398,55 @@ realState.run = null;
 await handle.refresh();
 await new Promise((r) => setTimeout(r, 40));
 
+// 8d) profile 判不出来时（0.13.6）：不能假装正常，要明说原因
+// 背景：detectProfile 曾硬编码兜底 desktop，于是任何机器都判成 desktop，
+// 保存配置写进错的文件。现在判不出来就返回 null，前端必须把这件事说出来。
+const savedProfile = realState.profile;
+const savedLayers = realState.layers;
+realState.profile = null;
+realState.layers = [
+  {
+    id: "profile",
+    label: "profile 的 cordis.patch.yml（真源）",
+    path: "",
+    writable: true,
+    exists: false,
+    error: "无法判定当前 profile，因此不知道真源在哪（见下方「profile 判定」）",
+    unresolvable: true,
+    found: false,
+    disabled: false,
+    duplicateEntries: 0,
+    keys: {}
+  },
+  savedLayers[1]
+];
+await handle.refresh();
+await new Promise((r) => setTimeout(r, 40));
+
+const body = find(root, "lw-body")[0] || root;
+const allText = body.textContent || "";
+check("判不出 profile 时页面上写明了", allText.indexOf(d.profileUnknown) >= 0, "has=" + (allText.indexOf(d.profileUnknown) >= 0));
+check("判不出 profile 时有解释卡", find(root, "lw-profwarn").length === 1,
+  "count=" + find(root, "lw-profwarn").length);
+check("解释里说明写入被拒绝", /拒绝/.test(allText) && /profile/i.test(allText));
+// 层表：真源层显示「判不出 profile」，而不是「不存在」——用户能采取的动作完全不同
+const layerCodes = find(root, "lw-code").map((n) => n.textContent || "");
+check("真源层路径显示为占位而不是 profiles/null", layerCodes.indexOf("—") >= 0 && !layerCodes.some((t) => t.indexOf("null") >= 0),
+  JSON.stringify(layerCodes.slice(0, 3)));
+check("真源层胶囊写的是「判不出 profile」", allText.indexOf(d.profileUnknown) >= 0 && allText.indexOf("不存在") !== allText.indexOf(d.profileUnknown));
+// 服务端会 409 拒绝写入；与其让用户改完再吃错误，不如一开始就按住按钮
+const editBtns = find(root, "lw-btn").filter((b) => b.textContent === d.edit && b.getAttribute("data-fk"));
+check("判不出 profile 时「改」按钮被按住", editBtns.length > 0 && editBtns.every((b) => b.disabled === true),
+  "btn=" + editBtns.length + " disabled=" + editBtns.filter((b) => b.disabled).length);
+check("按住时按钮带解释（title）", editBtns.every((b) => !!b.title), "titled=" + editBtns.filter((b) => !!b.title).length);
+
+realState.profile = savedProfile;
+realState.layers = savedLayers;
+await handle.refresh();
+await new Promise((r) => setTimeout(r, 40));
+check("profile 恢复后解释卡消失", find(root, "lw-profwarn").length === 0,
+  "count=" + find(root, "lw-profwarn").length);
+
 // 9) 销毁
 handle.destroy();
 check("destroy 清空 root", root.children.length === 0);

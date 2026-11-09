@@ -25,6 +25,8 @@ if (widths.length === 0) widths.push(1200, 900, 420);
 const tabArg = (process.argv.slice(2).find((a) => a.startsWith("--tab=")) || "").slice(6);
 // --confirm：自动点一下「压实记忆库」，把内联二次确认的样子也截下来
 const confirmArg = process.argv.includes("--confirm");
+// --profile=unknown：截「判不出当前 profile」这个状态（0.13.6）
+const profileArg = (process.argv.slice(2).find((a) => a.startsWith("--profile=")) || "").slice(10);
 
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8" };
 
@@ -85,11 +87,12 @@ function pageUrl(w) {
   if (w < 500) q.push("w=" + w);
   if (tabArg) q.push("tab=" + tabArg);
   if (confirmArg) q.push("confirm=1");
+  if (profileArg) q.push("profile=" + profileArg);
   return "http://127.0.0.1:" + port + "/" + (q.length ? "?" + q.join("&") : "");
 }
 
 for (const w of widths) {
-  const file = join(OUT, "w" + w + (tabArg ? "-" + tabArg : "") + (confirmArg ? "-confirm" : "") + ".png");
+  const file = join(OUT, "w" + w + (tabArg ? "-" + tabArg : "") + (confirmArg ? "-confirm" : "") + (profileArg ? "-" + profileArg : "") + ".png");
   const common = [
     "--headless=new",
     "--disable-gpu",

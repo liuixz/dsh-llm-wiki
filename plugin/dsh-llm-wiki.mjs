@@ -128,6 +128,20 @@ export function apply(ctx, config = {}) {
   // 也不要把 "webServer" 写进静态 inject 数组：该服务在非 web 平台可能根本不存在，
   // 写进去会让整个插件（含提示词注入）都不激活。生态同写法见
   // @deepseek-ai/dsh-client-modules:570、dsh-web-app:155、@lemoncat7/dsh-knowledge:417。
+  //
+  // profile 同理：`ctx.get("profileContext")` 是桌面版 launcher 提供的「当前 profile 事实」
+  // （name/dir/cwd/installAnchor…），这是插件进程里唯一权威的 profile 来源。它也可能晚到，
+  // 所以每次调用时**现场取**（而不是 apply 时取一次存起来）：面板的 profile 判定函数
+  // 每次被问都重新算，服务一出现就能用上。
+  const currentProfileName = () => {
+    try {
+      const pc = typeof ctx.get === "function" ? ctx.get("profileContext") : null;
+      const n = pc && typeof pc.name === "string" ? pc.name : "";
+      return n;
+    } catch {
+      return "";
+    }
+  };
   const registerPanel = (webCtx) => {
     webCtx.effect(() => {
       let disposer = null;
@@ -135,7 +149,9 @@ export function apply(ctx, config = {}) {
         disposer = registerPanelRoutes({
           webServer: webCtx.webServer,
           vault: () => vault,
-          profile: () => detectProfile(PLUGIN_DIR),
+          // hint 优先：ctx.profileContext.name 是运行时真值；拿不到时 detectProfile
+          // 依次退回 DSH_PROFILE / desktop-next.json / 排除符号链接的目录扫描，都失败返回 null。
+          profile: () => detectProfile(PLUGIN_DIR, currentProfileName()),
           log: (m) => { try { console.log(m); } catch {} },
         });
         try { console.log("[dsh-llm-wiki] panel routes registered at " + PANEL_PREFIX); } catch {}

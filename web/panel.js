@@ -333,6 +333,9 @@
 .lw-delta.is-down{color:var(--lw-bad);}
 /* 历史页「其它指标」：次要信息用次要色 */
 .lw-note{font-size:11.5px;color:var(--lw-fg-3);}
+/* profile 判定失败时的解释块（0.13.6） */
+.lw-profwarn{font-size:12px;line-height:1.7;color:var(--lw-fg-2);}
+.lw-profwarn code{font-family:var(--lw-mono);font-size:11px;}
 
 /* ---- 表单（0.13.0 配置项与凭据共用） ---- */
 .lw-form{display:flex;flex-direction:column;}
@@ -507,6 +510,8 @@
       missing: "未注册",
       reach: "真源",
       readOnly: "只读",
+      profileUnknown: "判不出 profile",
+      profileUnknownWhy: "插件无法确定当前在跑哪个 profile，所以不知道真源（profile 的 cordis.patch.yml）在哪里。为避免改错文件，配置写入已被拒绝。面板其余功能不受影响，管线运行也照常。",
       drift: "漂移",
       layer: "层",
       key: "键",
@@ -646,6 +651,8 @@
       missing: "Not registered",
       reach: "Source of truth",
       readOnly: "read-only",
+      profileUnknown: "Unknown profile",
+      profileUnknownWhy: "The plugin cannot tell which profile is running, so it does not know where the source of truth (the profile's cordis.patch.yml) is. Configuration writes are refused so that the wrong file is never modified. Everything else in the panel, including pipeline runs, still works.",
       drift: "Drift",
       layer: "Layer",
       key: "Key",
@@ -1526,6 +1533,9 @@
       var eff = data.effective || {};
       var layers = data.layers || [];
       var drift = data.drift || [];
+      // 判不出 profile 时服务端会以 409 拒绝写入。与其让用户点开编辑器、改完、
+      // 再吃一个错误，不如一开始就按住按钮并说清原因（错误预防优于错误恢复）。
+      var canWrite = !!data.profile;
 
       // ---- 配置项（表单） ----
       var formNodes = [];
@@ -1558,7 +1568,8 @@
         var code = el("code", "lw-code", shown === "" ? "—" : shown);
         var edit = el("button", "lw-btn lw-btn-sm", d.edit);
         edit.type = "button";
-        edit.disabled = !!state.busy["cfg:" + k];
+        edit.disabled = !!state.busy["cfg:" + k] || !canWrite;
+        if (!canWrite) edit.title = d.profileUnknownWhy;
         fk(edit, "cfg:" + k + ":edit");
         edit.addEventListener("click", function () {
           state.editing = { kind: "config", key: k, value: shown };
@@ -1581,7 +1592,9 @@
         formNodes.push(formRow(k, acts[0], acts.slice(1)));
       });
 
-      var profileHint = (data.profile || "") + " · " + d.reach;
+      // 判得出 profile 时写「desktop · 真源」，判不出时只写「判不出 profile」——
+      // 「判不出 profile · 真源」会读成「真源就是判不出 profile」，两件事糊在一起。
+      var profileHint = data.profile ? data.profile + " · " + d.reach : d.profileUnknown;
       var form = el("div", "lw-form");
       if (formNodes.length === 0) {
         form.appendChild(el("div", "lw-empty", d.noData));
@@ -1589,6 +1602,14 @@
         formNodes.forEach(function (n) { form.appendChild(n); });
       }
       box.appendChild(card("gear", d.cfgTitle, profileHint, [form]));
+
+      // profile 判定不出来时，把「为什么改不了」直接摆在配置卡下面，
+      // 而不是让用户点保存后看到一个 400。
+      if (!data.profile) {
+        var why = el("div", "lw-profwarn");
+        why.appendChild(el("div", "lw-profwarn-body", d.profileUnknownWhy));
+        box.appendChild(card("alert", d.profileUnknown, d.readOnly, [why], "lw-warn"));
+      }
 
       // ---- 凭据（只写不读） ----
       renderSecrets(box, data);
@@ -1602,6 +1623,11 @@
       if (layers.length > 0) {
         var lrows = layers.map(function (l) {
           var badge = l.id === "profile" ? d.reach : d.readOnly;
+          if (l.unresolvable) {
+            // 判定不出 profile：这一层不是「文件不存在」，是「不知道文件在哪」，
+            // 两者用户能采取的动作完全不同，不能混成一句话。
+            return [l.id, l.label, el("code", "lw-code", "—"), el("span", "lw-chip is-warn", d.profileUnknown)];
+          }
           if (l.disabled) badge += " · disabled";
           if (l.duplicateEntries > 0) badge += " · 重复 " + (l.duplicateEntries + 1) + " 处";
           if (!l.exists) badge += " · 不存在";

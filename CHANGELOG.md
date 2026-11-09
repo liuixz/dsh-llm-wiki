@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.13.6 — 2026-11-09
+
+**面板在别人的机器上读错了 profile：它一直以为自己在 desktop 里跑。**
+
+装上插件、在设置面板里改配置，改完不生效——因为写进的是**另一个 profile** 的 `cordis.patch.yml`。这一轮把「我在哪个 profile」这件事从头做对。
+
+### 根因：一个硬编码兜底
+
+`plugin/panel/config.mjs` 的 `detectProfile()` 原来是「env → 扫 profile 目录的 package.json → 兜底 desktop」，三处叠加：
+
+1. **`DSH_PROFILE` 拿不到。** 这个变量只注入给「模型 shell 调用」（dsh-shell-env 的内置项），插件进程自己的 `process.env` 里通常没有它。于是判定几乎总是走到后面的猜测。
+2. **按文本匹配分不清真装与借用。** 判据是 `package.json` 里含 `"dsh-llm-wiki"` 字样；但 `profiles/desktop/node_modules/dsh-llm-wiki` 若是指向另一个 profile 的符号链接，desktop 的 package.json 里同样有这几个字，两个都算命中。
+3. **`if (hits.includes("desktop")) return "desktop"`。** 命中里只要有 desktop 就直接返回它——**任何机器、任何 active profile 都会被判成 desktop**。
+
+后果分三档：面板显示的 profile / vault / 漂移全是错的；在面板里保存配置**写进了错的文件**（`server.mjs` 的 `/api/config` 用 `ctx.profile()` 拼路径）；只有「全量」运行侥幸正确，因为 `scripts/llm-wiki-pipeline.mjs` 在 win32 上有自己的兜底路径，刚好和真实 vault 撞上了。
+
+### 修法一：四级判定链，判不出来就返回 null
+
+`detectProfile(packageRoot, hint)` 现在按序：
+
+1. `DSH_PROFILE` / `DSH_PROFILE_DIR` —— shell 派生进程与 CI 下最准。
+2. **`hint`：来自 DSH 的 `ctx.profileContext.name`** —— 桌面版 launcher 提供的「当前 profile 事实」（name / dir / cwd / installAnchor）。这是插件进程里唯一权威的来源，优先级高于任何文件推断。`plugin/dsh-llm-wiki.mjs` 每次调用时现场取（服务可能晚于插件挂载），而不是 apply 时取一次存起来。
+3. `$DSH_HOME/desktop-next.json` 的 `active` —— 桌面版重启后仍在的「用户选了哪个」。文件缺省、`active` 指向不存在的目录、名字非法（`../evil`、`con` 之类）都直接忽略。
+4. 扫 `profiles/<n>/package.json` 谁依赖本包，但**用 realpath 排除借用**：链接目标落在 `profiles/<别的>/` 内才算别人的；落在 `profiles/` 之外（`link:D:/project/...` 开发安装）和落在自己目录内都算自己的。
+5. 都不成立 → **`null`**。多个 profile 都真装了也返回 `null`——以前取字典序第一个，等价于掷骰子。
+
+### 修法二：null 一路传到底，不留半截
+
+- `readConfigState(vault, null)`：真源层的 `path` 留空、标 `unresolvable: true` 并带 `error`，不再拼出 `profiles/null/cordis.patch.yml` 去读一个不存在的文件。
+- `writeConfigKey(null, ...)`：**直接抛错拒写**，不做任何落盘。
+- `/api/config` POST：profile 取不到时返回 **409 + `reasonCode: "PROFILE_UNKNOWN"`**，而不是 400 或静默用 desktop。
+- 面板：`data.profile` 为空时配置卡提示改成「判不出 profile」，并在下面多一张警示卡解释「为避免改错文件，写入已被拒绝；面板其余功能与管线运行不受影响」。四个「改」按钮直接按住并带 `title`——让用户改完再吃一个 409，是把错误预防做成了错误恢复。
+
+### 修法三：spawn 子进程显式传 vault
+
+`server.mjs` 面板 startRun 的 `spawn` env 补 `LLM_WIKI_VAULT: currentVault()`。原来只传 `LLM_WIKI_PANEL`，管线只能靠自己的 win32 兜底路径——「面板显示的 vault」与「实际写入的 vault」不一致时，用户会以为配置生效了。`session/disposed` 那条触发路径早已显式传，现在两条一致。
+
+### 顺带
+
+- 新增 `test/profile-detect.mjs`（16 项）：用临时 `DSH_HOME` 造 alpha / beta（junction 借用）/ gamma 三种布局，逐条验四级链、null 传播、非法名拒绝、hint 优先级。`npm test` 里排在第一位。
+- `test/panel-e2e.mjs` 44 → **52 项**：新增 8d 段验「判不出 profile」这个状态本身——页面写明、有解释卡、真源层路径是 `—` 而不是 `profiles/null`、胶囊不写「不存在」、四个「改」按钮被按住且带 `title`、profile 恢复后解释卡消失。这种状态最容易被做成静默错误（判不出来就猜一个），所以要让探针盯着。
+- `test/preview.html` 加 `?profile=unknown`、`test/shot.mjs` 加 `--profile=unknown`，好把该状态截成真图肉眼验收。
+- `test/profile-detect.mjs` 用 `process.exit()` 收尾：Windows 上删除含 junction 的临时目录会卡住，不能让清理阻塞测试结论。
+
 ## 0.13.5 — 2026-11-08
 
 **`/impeccable polish`：0.13.4 把面板从「说谎」救回「说实话」，这一轮修它说实话时的口音。**

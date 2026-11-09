@@ -55,6 +55,31 @@
     }, 400);
   }
 
+  // ?profile=unknown → 模拟「判不出当前 profile」（0.13.6 新增状态）。
+  // 这是最容易被做成静默错误的状态：判不出来就猜一个，用户永远不知道写错了文件。
+  if (new URLSearchParams(location.search).get("profile") === "unknown") {
+    setTimeout(function () {
+      const fx = window.__FIXTURE__;
+      fx.profile = null;
+      if (fx.layers && fx.layers[0]) {
+        fx.layers[0] = {
+          id: "profile",
+          label: fx.layers[0].label,
+          path: "",
+          writable: true,
+          exists: false,
+          error: "无法判定当前 profile，因此不知道真源在哪（见下方「profile 判定」）",
+          unresolvable: true,
+          found: false,
+          disabled: false,
+          duplicateEntries: 0,
+          keys: {}
+        };
+      }
+      h.refresh();
+    }, 200);
+  }
+
   // 量一下：容器宽度、是否进了紧凑模式、文档有没有横向溢出，以及溢出的元凶
   setTimeout(function () {
     const root = document.getElementById("root");

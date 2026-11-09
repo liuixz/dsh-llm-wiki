@@ -138,6 +138,8 @@ async function readBody(req, limit = 64 * 1024) {
 
 function publicState(ctx) {
   const vault = ctx.vault();
+  // 判定不出 profile 时这里是 null —— 前端会据此显示「判不出 profile」并禁用写入，
+  // 绝不回退成某个具体名字（那正是 0.13.5 及以前把 desktop 硬编码进去的坑）。
   const profile = ctx.profile();
   const cfg = readConfigState(vault, profile);
   const lock = readLock();
@@ -238,7 +240,11 @@ function startRun(commandId, by) {
   try {
     child = spawn(process.execPath, [file, ...args], {
       cwd: dirname(file),
-      env: { ...process.env, LLM_WIKI_PANEL: "1" },
+      // LLM_WIKI_VAULT 必须显式传：面板用的 vault 来自插件上下文，子进程自己没有。
+      // 以前只传 LLM_WIKI_PANEL，管线只能靠 scripts/llm-wiki-pipeline.mjs 里的
+      // win32 兜底路径 —— 在「面板显示的 vault」与「实际写入的 vault」不一致时，
+      // 用户在面板里改配置看着生效了，管线却写到别处（方案文档里的 tctwork 现象）。
+      env: { ...process.env, LLM_WIKI_PANEL: "1", LLM_WIKI_VAULT: currentVault() },
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -467,7 +473,15 @@ export function registerPanelRoutes(ctx) {
         const body = await readBody(req);
         const key = String(body.key || "");
         if (!CONFIG_KEYS.includes(key)) return json(res, 400, { ok: false, reason: "不支持改这个键: " + key });
-        const r = writeConfigKey(ctx.profile(), key, body.value);
+        const profile = ctx.profile();
+        if (!profile) {
+          return json(res, 409, {
+            ok: false,
+            reason: "无法判定当前 profile，已拒绝写入（避免改错配置文件）。请确认 DSH 正在运行的 profile 后重试。",
+            reasonCode: "PROFILE_UNKNOWN",
+          });
+        }
+        const r = writeConfigKey(profile, key, body.value);
         return json(res, 200, { ok: true, ...r, restartRequired: r.changed !== false });
       }
 
